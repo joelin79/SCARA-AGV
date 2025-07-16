@@ -9,7 +9,7 @@ RIGHT_HANDED_MODE = True
 
 HOME_FEEDRATE = 3000
 MAX_FEEDRATE = 2000
-MAX_ACC = 500
+MAX_ACC = 100
 
 PULSE_J1 = 88.889
 PULSE_J2 = 88.889
@@ -25,6 +25,15 @@ ORIGIN_Z = 200
 ORIGIN_J1 = 109
 ORIGIN_J2 = -146
 ORIGIN_J3 = 200
+ORIGIN_J4 = 0
+
+CUR_X = ORIGIN_X
+CUR_Y = ORIGIN_Y
+CUR_Z = ORIGIN_Z
+CUR_J1 = ORIGIN_J1
+CUR_J2 = ORIGIN_J2
+CUR_J3 = ORIGIN_J3
+CUR_J4 = ORIGIN_J4
 
 LENGTH_J1 = 205
 LENGTH_J2 = 205
@@ -39,7 +48,20 @@ LIMIT_J3_MIN = 6
 LIMIT_J4_MAX = 180
 LIMIT_J4_MIN = -180
 
-def check_joint_limits(j1, j2, j3, j4):
+def check_joint_limits(j1: float, j2: float, j3: float | None, j4: float | None, L1: float = LENGTH_J1, L2: float = LENGTH_J2) -> None:
+
+    x, y = angles_to_cartesian(j1, j2, L1, L2)
+
+    if x < 0 and -100 < y < 100:
+        raise ValueError("會打到機身 (-X, +100~-100)")
+    r = math.sqrt(x**2 + y**2)
+    if r > (L1 + L2):
+        raise ValueError("Target is out of reach")
+    r2 = x**2 + y**2
+    cos_theta2 = (r2 - L1**2 - L2**2) / (2 * L1 * L2)
+    if abs(cos_theta2) > 1:
+        raise ValueError("Unreachable: cos(theta2) out of bounds")
+
     if not (LIMIT_J1_MIN <= j1 <= LIMIT_J1_MAX):
         raise ValueError(f"J1 angle out of range: {j1:.2f}")
     if not (LIMIT_J2_MIN <= j2 <= LIMIT_J2_MAX):
@@ -53,13 +75,7 @@ def cartesian_to_angles(x, y, z=None, j4=None, L1=LENGTH_J1, L2=LENGTH_J2, elbow
     r2 = x**2 + y**2
     r = math.sqrt(r2)
 
-    if r > (L1 + L2):
-        raise ValueError("Target is out of reach")
-
     cos_theta2 = (r2 - L1**2 - L2**2) / (2 * L1 * L2)
-    if abs(cos_theta2) > 1:
-        raise ValueError("Unreachable: cos(theta2) out of bounds")
-
     theta2 = math.acos(cos_theta2)
 
     if elbow == 'up':
@@ -74,7 +90,6 @@ def cartesian_to_angles(x, y, z=None, j4=None, L1=LENGTH_J1, L2=LENGTH_J2, elbow
 
     print(f"(x: {x}, y: {y}) --> [J1: {theta1_deg:.2f}º, J2: {theta2_deg:.2f}º]")
 
-    check_joint_limits(theta1_deg, theta2_deg, z, j4)
     return theta1_deg, theta2_deg
 
 def angles_to_cartesian(j1_deg, j2_deg, L1=LENGTH_J1, L2=LENGTH_J2):
@@ -174,7 +189,6 @@ def home(x=None, y=None, z=None):
     send_commands([cmd])
 
 
-
 def calibrate():
     set_steps_per_unit(PULSE_J1, PULSE_J2, PULSE_J3, PULSE_J4,PULSE_J5, PULSE_J6)
     set_home_dir(1,-1,1,1,1,1)
@@ -201,90 +215,10 @@ def send_commands(commands):
     for cmd in commands:
         ser.write((cmd + '\n').encode())
         print(f"Sent: {cmd}")
-        time.sleep(0.1)
+        time.sleep(0.05)
 
 
-STEP = 5     # mm or degrees per key press
-FEED = 1000  # movement speed
 
-def keyboard_control_pygame():
-    pygame.init()
-    screen = pygame.display.set_mode((300, 200))
-    pygame.display.set_caption("SCARA Arm Keyboard Control")
-
-    mode = 'cartesian'
-    pos = {'x': ORIGIN_X, 'y': ORIGIN_Y, 'z': ORIGIN_Z}
-    joint = {'j1': ORIGIN_J1, 'j2': ORIGIN_J2, 'j3': ORIGIN_J3}
-    current_joint = 'j1'
-
-    running = True
-    clock = pygame.time.Clock()
-
-    print("Keyboard control started. Press ESC to quit.")
-
-    while running:
-        for event in pygame.event.get():
-            if event.type == pygame.QUIT:
-                running = False
-
-        keys = pygame.key.get_pressed()
-
-        if keys[pygame.K_ESCAPE]:
-            running = False
-
-        # Toggle mode
-        if keys[pygame.K_TAB]:
-            mode = 'joint' if mode == 'cartesian' else 'cartesian'
-            print(f"Switched to {mode} mode")
-            pygame.time.wait(300)
-
-        if mode == 'cartesian':
-            moved = False
-            if keys[pygame.K_w]:
-                pos['y'] += STEP
-                moved = True
-            elif keys[pygame.K_s]:
-                pos['y'] -= STEP
-                moved = True
-            elif keys[pygame.K_a]:
-                pos['x'] -= STEP
-                moved = True
-            elif keys[pygame.K_d]:
-                pos['x'] += STEP
-                moved = True
-            elif keys[pygame.K_q]:
-                pos['z'] += STEP
-                moved = True
-            elif keys[pygame.K_e]:
-                pos['z'] -= STEP
-                moved = True
-
-            if moved:
-                quick(pos['x'], pos['y'], pos['z'], FEED)
-                print(f"Moved to: {pos}")
-                pygame.time.wait(150)
-
-        else:
-            if keys[pygame.K_1]: current_joint = 'j1'
-            if keys[pygame.K_2]: current_joint = 'j2'
-            if keys[pygame.K_3]: current_joint = 'j3'
-
-            moved = False
-            if keys[pygame.K_LEFT]:
-                joint[current_joint] -= STEP
-                moved = True
-            elif keys[pygame.K_RIGHT]:
-                joint[current_joint] += STEP
-                moved = True
-
-            if moved:
-                quick(joint['j1'], joint['j2'], joint['j3'], FEED)
-                print(f"Joints: {joint}")
-                pygame.time.wait(150)
-
-        clock.tick(20)  # limit FPS
-
-    pygame.quit()
 
 
 
@@ -298,6 +232,113 @@ calibrate()
 # set_origin(0,0,200)
 # quick(ORIGIN_J1,ORIGIN_J2,ORIGIN_J3,1000)
 coordinate_mode()
+
+STEP_CART = 2  # mm step for cartesian movements
+STEP_ANG = 1   # degree step for joint angle movements
+
+def keyboard_control_pygame():
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J3, CUR_J4
+
+    pygame.init()
+    screen = pygame.display.set_mode((200, 200))
+    pygame.display.set_caption("SCARA Control")
+    clock = pygame.time.Clock()
+
+    mode = 'coord'  # 'coord' or 'angle'
+    coordinate_mode()
+
+    running = True
+    while running:
+        for event in pygame.event.get():
+            if event.type == pygame.QUIT:
+                running = False
+            elif event.type == pygame.KEYDOWN:
+                if event.key == pygame.K_ESCAPE:
+                    running = False
+                if event.key == pygame.K_0:
+                    calibrate()
+                    print("Calibration triggered")
+                if event.key == pygame.K_j:
+                    if mode == 'coord':
+                        mode = 'angle'
+                        angle_mode()
+                        # update joint variables to match current coordinates
+                        CUR_J1, CUR_J2 = cartesian_to_angles(CUR_X, CUR_Y)
+                        # preserve CUR_J3 as CUR_Z, CUR_J4 unchanged
+                        CUR_J3 = CUR_Z
+                        print("Switched to angle mode")
+                    else:
+                        mode = 'coord'
+                        coordinate_mode()
+                        # update coordinates to match current joint angles
+                        CUR_X, CUR_Y = angles_to_cartesian(CUR_J1, CUR_J2)
+                        # preserve CUR_Z as CUR_J3
+                        CUR_Z = CUR_J3
+                        print("Switched to coordinate mode")
+                    continue
+
+        keys = pygame.key.get_pressed()
+
+        if mode == 'coord':
+            dx = 0
+            dy = 0
+            if keys[pygame.K_w]:
+                dx += STEP_CART
+            if keys[pygame.K_s]:
+                dx -= STEP_CART
+            if keys[pygame.K_a]:
+                dy += STEP_CART
+            if keys[pygame.K_d]:
+                dy -= STEP_CART
+            if dx != 0 or dy != 0:
+                new_x = CUR_X + dx
+                new_y = CUR_Y + dy
+                try:
+                    j1, j2 = cartesian_to_angles(new_x, new_y, L1=LENGTH_J1, L2=LENGTH_J2)
+                    check_joint_limits(j1, j2, CUR_Z, CUR_J4)
+                    quick(new_x, new_y, CUR_Z)
+                    CUR_X, CUR_Y = new_x, new_y
+                except ValueError as e:
+                    print(f"Limit error: {e}")
+
+        elif mode == 'angle':
+            dj1 = 0
+            dj2 = 0
+            dj3 = 0
+            dj4 = 0
+            if keys[pygame.K_q]:
+                dj1 += STEP_ANG
+            if keys[pygame.K_a]:
+                dj1 -= STEP_ANG
+            if keys[pygame.K_w]:
+                dj2 += STEP_ANG
+            if keys[pygame.K_s]:
+                dj2 -= STEP_ANG
+            if keys[pygame.K_e]:
+                dj3 += STEP_ANG
+            if keys[pygame.K_d]:
+                dj3 -= STEP_ANG
+            if keys[pygame.K_r]:
+                dj4 += STEP_ANG
+            if keys[pygame.K_f]:
+                dj4 -= STEP_ANG
+            if dj1 != 0 or dj2 != 0 or dj3 != 0 or dj4 != 0:
+                new_j1 = CUR_J1 + dj1
+                new_j2 = CUR_J2 + dj2
+                new_j3 = CUR_J3 + dj3
+                new_j4 = CUR_J4 + dj4
+                try:
+                    check_joint_limits(new_j1, new_j2, new_j3, new_j4)
+                    angle_mode()
+                    quick(new_j1, new_j2, new_j3)
+                    CUR_J1, CUR_J2, CUR_J3, CUR_J4 = new_j1, new_j2, new_j3, new_j4
+                except ValueError as e:
+                    print(f"Limit error: {e}")
+
+        clock.tick(30)
+
+    pygame.quit()
+
 keyboard_control_pygame()
 
 ser.close()

@@ -59,5 +59,6 @@ def angles_to_cartesian(j1_deg, j2_deg, L1=LENGTH_J1, L2=LENGTH_J2):
     print(f"[J1: {j1_deg:.2f}º, J2: {j2_deg:.2f}º] --> (x: {x:.2f}, y: {y:.2f})")
     return x, y
 
+
 cartesian_to_angles(277.14, 17.14, 200, 0)
 angles_to_cartesian(50.91,-94.74)
