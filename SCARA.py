@@ -180,6 +180,14 @@ def linear(x, y, z, f=3000):
 def delay(s):
     send_commands([f"G4 T{s}"])
 
+def section_power(v: bool):
+    if v: send_commands(["G130 V1"])
+    else: send_commands(["G130 V0"])
+
+def section_trigger(v: bool):
+    if v: send_commands(["G131 V1"])
+    else: send_commands(["G131 V0"])
+
 # 回原點      NOTE: 會重設原點設置 (相當於執行 M368)
 def home(x=None, y=None, z=None):
     cmd = "G28"
@@ -215,7 +223,7 @@ def send_commands(commands):
     for cmd in commands:
         ser.write((cmd + '\n').encode())
         print(f"Sent: {cmd}")
-        time.sleep(0.05)
+        time.sleep(0.02)
 
 
 
@@ -233,7 +241,7 @@ calibrate()
 # quick(ORIGIN_J1,ORIGIN_J2,ORIGIN_J3,1000)
 coordinate_mode()
 
-STEP_CART = 2  # mm step for cartesian movements
+STEP_CART = 1  # mm step for cartesian movements
 STEP_ANG = 1   # degree step for joint angle movements
 
 def keyboard_control_pygame():
@@ -262,17 +270,13 @@ def keyboard_control_pygame():
                     if mode == 'coord':
                         mode = 'angle'
                         angle_mode()
-                        # update joint variables to match current coordinates
                         CUR_J1, CUR_J2 = cartesian_to_angles(CUR_X, CUR_Y)
-                        # preserve CUR_J3 as CUR_Z, CUR_J4 unchanged
                         CUR_J3 = CUR_Z
                         print("Switched to angle mode")
                     else:
                         mode = 'coord'
                         coordinate_mode()
-                        # update coordinates to match current joint angles
                         CUR_X, CUR_Y = angles_to_cartesian(CUR_J1, CUR_J2)
-                        # preserve CUR_Z as CUR_J3
                         CUR_Z = CUR_J3
                         print("Switched to coordinate mode")
                     continue
@@ -338,7 +342,3 @@ def keyboard_control_pygame():
         clock.tick(30)
 
     pygame.quit()
-
-keyboard_control_pygame()
-
-ser.close()
