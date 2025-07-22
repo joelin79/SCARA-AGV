@@ -138,7 +138,7 @@ def set_max_feedrate(x, y, z, i, j, k):
 
 # 設定最大加速度
 def set_max_acc(x, y, z, i, j, k):
-    send_commands([f"M201 X{x} Y{y} Z{z} I{i} J{i} K{k}"])
+    send_commands([f"M201 X{x} Y{y} Z{z} I{i} J{j} K{k}"])
 
 # 硬體儲存
 def save_settings():
@@ -174,7 +174,7 @@ def quick(x, y, z, f=3000):
 
 # 線性移動
 def linear(x, y, z, f=3000):
-    send_commands([f"G0 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+    send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
 
 # 延遲
 def delay(s):
