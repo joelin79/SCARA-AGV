@@ -226,12 +226,6 @@ def send_commands(commands):
         time.sleep(0.02)
 
 
-
-
-
-
-
-
 calibrate()
 # quick(410,0,100,6000)
 # # quick(ORIGIN_X,ORIGIN_Y,ORIGIN_Z)
