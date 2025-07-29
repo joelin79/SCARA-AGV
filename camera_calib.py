@@ -95,9 +95,9 @@ def run_calibration():
     print(f"Using {len(checkerboard_images)} images for calibration...")
 
     try:
-    cam_mat, dist_coeffs, rvecs, tvecs = calibrate_camera(
-        checkerboard_images, checkerboard_size, square_size
-    )
+        cam_mat, dist_coeffs, rvecs, tvecs = calibrate_camera(
+            checkerboard_images, checkerboard_size, square_size
+        )
 
         # Create hand-eye transform for camera mounted on arm
         # Camera facing down, aligned to -x direction of arm
@@ -108,10 +108,10 @@ def run_calibration():
             [0,  0,  0, 1]
         ])
 
-    # Save parameters to YAML
-    params = {
-        'camera_matrix': cam_mat.tolist(),
-        'dist_coeffs': dist_coeffs.tolist(),
+        # Save parameters to YAML
+        params = {
+            'camera_matrix': cam_mat.tolist(),
+            'dist_coeffs': dist_coeffs.tolist(),
             'T_cam_to_robot': T_cam_to_robot.tolist(),
             'calibration_info': {
                 'checkerboard_size': checkerboard_size,
@@ -119,10 +119,10 @@ def run_calibration():
                 'num_images': len(checkerboard_images),
                 'camera_model': 'Intel RealSense D435i'
             }
-    }
+        }
         
-    with open('calib_params.yaml', 'w') as f:
-        yaml.dump(params, f)
+        with open('calib_params.yaml', 'w') as f:
+            yaml.dump(params, f)
         
         print("Calibration complete!")
         print(f"Camera matrix:")
