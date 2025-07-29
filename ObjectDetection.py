@@ -125,9 +125,9 @@ class SCARAObjectDetection:
         y_camera = y_norm * z_camera
         
         # Calculate camera position
-        # Extension arm always points in +Y direction (90° cartesian)
+        # Extension arm always points in -Y direction (-90° cartesian)
         # Camera is at EXTENSION_CAMERA_LENGTH from J4 center along extension arm
-        extension_angle_rad = math.radians(90)  # +Y direction
+        extension_angle_rad = math.radians(-90)  # -Y direction
         
         camera_x = arm_x + EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
         camera_y = arm_y + EXTENSION_CAMERA_LENGTH * math.sin(extension_angle_rad)
@@ -172,10 +172,10 @@ class SCARAObjectDetection:
         # Account for extension arm - we want the camera to cover the workspace
         # So the end effector should be positioned such that camera covers desired area
         
-        # Camera is 140mm ahead of end effector in +Y direction
+        # Camera is 140mm ahead of end effector in -Y direction
         # Adjust scanning range accordingly
         x_min, x_max = 50, 350
-        y_min, y_max = -250 - EXTENSION_CAMERA_LENGTH, 250 - EXTENSION_CAMERA_LENGTH
+        y_min, y_max = -250 + EXTENSION_CAMERA_LENGTH, 250 + EXTENSION_CAMERA_LENGTH
         z_scan = ORIGIN_Z  # Keep Z at origin height
         
         x_step = (x_max - x_min) / (grid_size - 1)
@@ -206,9 +206,9 @@ class SCARAObjectDetection:
             Captured image as numpy array
         """
         try:
-            # Move arm to position with extension arm pointing +Y (90°)
-            print(f"Moving to position ({x:.1f}, {y:.1f}, {z:.1f}) with extension arm at +Y")
-            quick(x, y, z, maintain_extension_direction=True, extension_angle=90.0)
+            # Move arm to position with extension arm pointing -Y (-90°)
+            print(f"Moving to position ({x:.1f}, {y:.1f}, {z:.1f}) with extension arm at -Y")
+            quick(x, y, z, maintain_extension_direction=True, extension_angle=-90.0)
             time.sleep(1.5)  # Wait for arm to stabilize (longer due to extension arm movement)
             
             # Capture image

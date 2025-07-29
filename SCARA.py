@@ -117,8 +117,8 @@ def get_suction_cup_position() -> tuple[float, float, float]:
     """
     global CUR_X, CUR_Y, CUR_Z, CUR_J4
     
-    # Extension arm absolute angle (assuming it points +Y = 90°)
-    extension_angle_rad = math.radians(90)  # +Y direction
+    # Extension arm absolute angle (assuming it points -Y = -90°)
+    extension_angle_rad = math.radians(-90)  # -Y direction
     
     # Suction cup position
     suction_x = CUR_X + EXTENSION_SUCTION_LENGTH * math.cos(extension_angle_rad)
@@ -136,8 +136,8 @@ def get_camera_position() -> tuple[float, float, float]:
     """
     global CUR_X, CUR_Y, CUR_Z, CUR_J4
     
-    # Extension arm absolute angle (assuming it points +Y = 90°)
-    extension_angle_rad = math.radians(90)  # +Y direction
+    # Extension arm absolute angle (assuming it points -Y = -90°)
+    extension_angle_rad = math.radians(-90)  # -Y direction
     
     # Camera position
     camera_x = CUR_X + EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
@@ -316,7 +316,7 @@ def angle_mode():
 
 # ----- ACTIONS -----
 # 快速移動 (with automatic extension arm orientation)
-def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=90.0):
+def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
     """
     Quick movement with automatic extension arm control.
     
@@ -324,7 +324,7 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=90
         x, y, z: Target position
         f: Feedrate
         maintain_extension_direction: If True, automatically maintain extension direction
-        extension_angle: Target extension direction in cartesian coordinates (default: +Y = 90°)
+        extension_angle: Target extension direction in cartesian coordinates (default: -Y = -90°)
     """
     global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
     
@@ -358,7 +358,7 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=90
         CUR_X, CUR_Y, CUR_Z = x, y, z
 
 # 線性移動 (with automatic extension arm orientation)
-def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=90.0):
+def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
     """
     Linear movement with automatic extension arm control.
     
@@ -366,7 +366,7 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=9
         x, y, z: Target position
         f: Feedrate
         maintain_extension_direction: If True, automatically maintain extension direction
-        extension_angle: Target extension direction in cartesian coordinates (default: +Y = 90°)
+        extension_angle: Target extension direction in cartesian coordinates (default: -Y = -90°)
     """
     global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
     
@@ -453,11 +453,11 @@ def calibrate():
     CUR_J4 = 0
     coordinate_mode()
     
-    # Set extension arm to point in +Y direction (90 degrees cartesian)
-    print("Setting extension arm to point in +Y direction...")
-    set_extension_direction(90.0)  # +Y direction
+    # Set extension arm to point in -Y direction (-90 degrees cartesian)
+    print("Setting extension arm to point in -Y direction...")
+    set_extension_direction(-90.0)  # -Y direction
     
-    print("Calibration complete. Extension arm now points in +Y direction.")
+    print("Calibration complete. Extension arm now points in -Y direction.")
 
 
 def send_commands(commands):

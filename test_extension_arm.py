@@ -50,14 +50,14 @@ def test_extension_arm_movement():
         (150, 200, ORIGIN_Z)
     ]
     
-    print("Moving to test positions with extension arm pointing +Y...")
+    print("Moving to test positions with extension arm pointing -Y...")
     
     for i, (x, y, z) in enumerate(test_positions):
         try:
             print(f"\nPosition {i+1}: ({x}, {y}, {z})")
             
             # Move with automatic extension control
-            quick(x, y, z, maintain_extension_direction=True, extension_angle=90.0)
+            quick(x, y, z, maintain_extension_direction=True, extension_angle=-90.0)
             time.sleep(1.0)
             
             # Get positions
@@ -83,10 +83,10 @@ def test_different_extension_directions():
     
     # Test different directions
     directions = [
-        (90, "+Y direction (default)"),
+        (-90, "-Y direction (default)"),
         (0, "+X direction"), 
         (180, "-X direction"),
-        (-90, "-Y direction")
+        (90, "+Y direction")
     ]
     
     for angle, description in directions:
