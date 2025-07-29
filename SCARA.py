@@ -22,6 +22,7 @@ ORIGIN_X = 96.979
 ORIGIN_Y = 70.459
 ORIGIN_Z = 200
 
+# Positive is CW
 ORIGIN_J1 = 109
 ORIGIN_J2 = -146
 ORIGIN_J3 = 200
@@ -39,6 +40,10 @@ LENGTH_J1 = 205
 LENGTH_J2 = 205
 LENGTH_J3 = 200
 
+# Extension arm dimensions (from J4 center)
+EXTENSION_SUCTION_LENGTH = 45   # mm from J4 to suction cup center
+EXTENSION_CAMERA_LENGTH = 140   # mm from J4 to camera center
+
 LIMIT_J1_MAX = 109
 LIMIT_J1_MIN = -109
 LIMIT_J2_MAX = 146
@@ -47,6 +52,144 @@ LIMIT_J3_MAX = 200
 LIMIT_J3_MIN = 6
 LIMIT_J4_MAX = 180
 LIMIT_J4_MIN = -180
+
+def calculate_j4_for_cartesian_direction(j1: float, j2: float, cartesian_angle: float) -> float:
+    """
+    Calculate J4 angle needed to point extension arm in specified cartesian direction.
+    
+    Args:
+        j1, j2: Current joint angles (degrees)
+        cartesian_angle: Target direction in cartesian coordinates (degrees)
+                        0° = +X direction, 90° = +Y direction, -90° = -Y direction, ±180° = -X direction
+    
+    Returns:
+        J4 angle relative to J2 (degrees)
+    """
+    # Current arm orientation (J1 + J2) in standard coordinates where 0° = +X
+    current_arm_orientation = j1 + j2
+    
+    # User's cartesian system: 0° = +X, 90° = +Y, -90° = -Y, ±180° = -X
+    # Standard system: 0° = +X, 90° = +Y, 180° = -X, 270° = -Y
+    # For this system, the angles are already aligned with standard coordinates
+    target_standard_angle = cartesian_angle
+    
+    # Calculate required J4 angle
+    j4_angle = target_standard_angle - current_arm_orientation
+    
+    # Normalize angle to [-180, 180]
+    while j4_angle > 180:
+        j4_angle -= 360
+    while j4_angle <= -180:
+        j4_angle += 360
+    
+    return j4_angle
+
+def set_extension_direction(cartesian_angle: float):
+    """
+    Set extension arm to point in specified cartesian direction.
+    
+    Args:
+        cartesian_angle: Target direction (0° = +X, 90° = +Y, -90° = -Y, ±180° = -X)
+    """
+    global CUR_J1, CUR_J2, CUR_J4
+    
+    # Calculate required J4 angle
+    required_j4 = calculate_j4_for_cartesian_direction(CUR_J1, CUR_J2, cartesian_angle)
+    
+    # Check if J4 is within limits
+    if not (LIMIT_J4_MIN <= required_j4 <= LIMIT_J4_MAX):
+        raise ValueError(f"Required J4 angle {required_j4:.2f}° is out of range [{LIMIT_J4_MIN}, {LIMIT_J4_MAX}]")
+    
+    # Send J4 command in angle mode
+    angle_mode()
+    send_commands([f"G0 I{CUR_J1:.3f} J{CUR_J2:.3f} K{CUR_J3:.3f} L{required_j4:.3f}"])
+    CUR_J4 = required_j4
+    coordinate_mode()
+    
+    print(f"Extension arm set to {cartesian_angle:.1f}° (J4 = {required_j4:.2f}°)")
+
+def get_suction_cup_position() -> tuple[float, float, float]:
+    """
+    Get current suction cup position in world coordinates.
+    
+    Returns:
+        (x, y, z) position of suction cup center
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J4
+    
+    # Extension arm absolute angle (assuming it points +Y = 90°)
+    extension_angle_rad = math.radians(90)  # +Y direction
+    
+    # Suction cup position
+    suction_x = CUR_X + EXTENSION_SUCTION_LENGTH * math.cos(extension_angle_rad)
+    suction_y = CUR_Y + EXTENSION_SUCTION_LENGTH * math.sin(extension_angle_rad)
+    suction_z = CUR_Z  # Same height as end effector
+    
+    return (suction_x, suction_y, suction_z)
+
+def get_camera_position() -> tuple[float, float, float]:
+    """
+    Get current camera position in world coordinates.
+    
+    Returns:
+        (x, y, z) position of camera center
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J4
+    
+    # Extension arm absolute angle (assuming it points +Y = 90°)
+    extension_angle_rad = math.radians(90)  # +Y direction
+    
+    # Camera position
+    camera_x = CUR_X + EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
+    camera_y = CUR_Y + EXTENSION_CAMERA_LENGTH * math.sin(extension_angle_rad)
+    camera_z = CUR_Z  # Same height as end effector
+    
+    return (camera_x, camera_y, camera_z)
+
+def check_extension_arm_collision(j1: float, j2: float, j4: float) -> None:
+    """
+    Check if extension arm will collide with base or arm structure.
+    
+    Args:
+        j1, j2: Arm joint angles (degrees)
+        j4: Extension arm angle relative to J2 (degrees)
+    """
+    # Get end effector position
+    end_x, end_y = angles_to_cartesian(j1, j2, LENGTH_J1, LENGTH_J2)
+    
+    # Calculate extension arm absolute angle
+    extension_absolute_angle = j1 + j2 + j4
+    extension_rad = math.radians(extension_absolute_angle)
+    
+    # Check suction cup position
+    suction_x = end_x + EXTENSION_SUCTION_LENGTH * math.cos(extension_rad)
+    suction_y = end_y + EXTENSION_SUCTION_LENGTH * math.sin(extension_rad)
+    
+    # Check camera position  
+    camera_x = end_x + EXTENSION_CAMERA_LENGTH * math.cos(extension_rad)
+    camera_y = end_y + EXTENSION_CAMERA_LENGTH * math.sin(extension_rad)
+    
+    # Check collision with base (enlarged safety zone due to extension)
+    base_collision_zone = 120  # mm, increased from 100mm
+    
+    # Check suction cup collision
+    if suction_x < 0 and abs(suction_y) < base_collision_zone:
+        raise ValueError(f"Suction cup will hit base: position ({suction_x:.1f}, {suction_y:.1f})")
+    
+    # Check camera collision  
+    if camera_x < 0 and abs(camera_y) < base_collision_zone:
+        raise ValueError(f"Camera will hit base: position ({camera_x:.1f}, {camera_y:.1f})")
+    
+    # Check if extension goes too far from base (safety limit)
+    max_reach = LENGTH_J1 + LENGTH_J2 + EXTENSION_CAMERA_LENGTH + 50  # 50mm safety margin
+    
+    suction_distance = math.sqrt(suction_x**2 + suction_y**2)
+    camera_distance = math.sqrt(camera_x**2 + camera_y**2)
+    
+    if suction_distance > max_reach:
+        raise ValueError(f"Suction cup too far from base: {suction_distance:.1f}mm > {max_reach}mm")
+    if camera_distance > max_reach:
+        raise ValueError(f"Camera too far from base: {camera_distance:.1f}mm > {max_reach}mm")
 
 def check_joint_limits(j1: float, j2: float, j3: float | None, j4: float | None, L1: float = LENGTH_J1, L2: float = LENGTH_J2) -> None:
 
@@ -70,6 +213,10 @@ def check_joint_limits(j1: float, j2: float, j3: float | None, j4: float | None,
         raise ValueError(f"J3 value out of range: {j3}")
     if j4 is not None and not (LIMIT_J4_MIN <= j4 <= LIMIT_J4_MAX):
         raise ValueError(f"J4 value out of range: {j4}")
+    
+    # Check extension arm collisions if J4 is specified
+    if j4 is not None:
+        check_extension_arm_collision(j1, j2, j4)
 
 def cartesian_to_angles(x, y, z=None, j4=None, L1=LENGTH_J1, L2=LENGTH_J2, elbow='up'):
     r2 = x**2 + y**2
@@ -168,13 +315,89 @@ def angle_mode():
 
 
 # ----- ACTIONS -----
-# 快速移動
-def quick(x, y, z, f=3000):
-    send_commands([f"G0 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+# 快速移動 (with automatic extension arm orientation)
+def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=90.0):
+    """
+    Quick movement with automatic extension arm control.
+    
+    Args:
+        x, y, z: Target position
+        f: Feedrate
+        maintain_extension_direction: If True, automatically maintain extension direction
+        extension_angle: Target extension direction in cartesian coordinates (default: +Y = 90°)
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
+    
+    if maintain_extension_direction:
+        # Calculate joint angles for target position
+        j1, j2 = cartesian_to_angles(x, y)
+        
+        # Calculate required J4 for maintaining extension direction
+        required_j4 = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        
+        # Check limits including extension arm collision
+        check_joint_limits(j1, j2, z, required_j4)
+        
+        # Move with coordinated J4
+        send_commands([f"G0 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+        
+        # Update J4 if needed
+        if abs(required_j4 - CUR_J4) > 0.1:  # Only update if significant change
+            angle_mode()
+            send_commands([f"G0 L{required_j4:.3f}"])
+            coordinate_mode()
+            CUR_J4 = required_j4
+        
+        # Update current position
+        CUR_X, CUR_Y, CUR_Z = x, y, z
+        CUR_J1, CUR_J2 = j1, j2
+        
+    else:
+        # Standard movement without extension arm control
+        send_commands([f"G0 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+        CUR_X, CUR_Y, CUR_Z = x, y, z
 
-# 線性移動
-def linear(x, y, z, f=3000):
-    send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+# 線性移動 (with automatic extension arm orientation)
+def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=90.0):
+    """
+    Linear movement with automatic extension arm control.
+    
+    Args:
+        x, y, z: Target position
+        f: Feedrate
+        maintain_extension_direction: If True, automatically maintain extension direction
+        extension_angle: Target extension direction in cartesian coordinates (default: +Y = 90°)
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
+    
+    if maintain_extension_direction:
+        # Calculate joint angles for target position
+        j1, j2 = cartesian_to_angles(x, y)
+        
+        # Calculate required J4 for maintaining extension direction
+        required_j4 = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        
+        # Check limits including extension arm collision
+        check_joint_limits(j1, j2, z, required_j4)
+        
+        # Move with coordinated J4
+        send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+        
+        # Update J4 if needed
+        if abs(required_j4 - CUR_J4) > 0.1:  # Only update if significant change
+            angle_mode()
+            send_commands([f"G1 L{required_j4:.3f}"])
+            coordinate_mode()
+            CUR_J4 = required_j4
+        
+        # Update current position
+        CUR_X, CUR_Y, CUR_Z = x, y, z
+        CUR_J1, CUR_J2 = j1, j2
+        
+    else:
+        # Standard movement without extension arm control
+        send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
+        CUR_X, CUR_Y, CUR_Z = x, y, z
 
 # 延遲
 def delay(s):
@@ -198,6 +421,8 @@ def home(x=None, y=None, z=None):
 
 
 def calibrate():
+    global CUR_J4
+    
     set_steps_per_unit(PULSE_J1, PULSE_J2, PULSE_J3, PULSE_J4,PULSE_J5, PULSE_J6)
     set_home_dir(1,-1,1,1,1,1)
     set_home_order(0,1,2,3,4,5)
@@ -214,9 +439,25 @@ def calibrate():
     set_limit_detection(True)
 
     home(ORIGIN_X, ORIGIN_Y, ORIGIN_Z)
-    quick(ORIGIN_X, ORIGIN_Y, ORIGIN_Z)
+    quick(ORIGIN_X, ORIGIN_Y, ORIGIN_Z, maintain_extension_direction=False)  # Move without extension control first
     set_origin(ORIGIN_X, ORIGIN_Y, ORIGIN_Z)
     set_limit_detection(True)
+    
+    print("Extension arm calibration...")
+    print("Ensure extension arm is parallel to J2 arm before proceeding.")
+    input("Press Enter when extension arm is properly aligned...")
+    
+    # Set J4 origin (extension parallel to J2 arm = 0 degrees)
+    angle_mode()
+    send_commands([f"G92 L0"])  # Set current J4 position as 0 degrees
+    CUR_J4 = 0
+    coordinate_mode()
+    
+    # Set extension arm to point in +Y direction (90 degrees cartesian)
+    print("Setting extension arm to point in +Y direction...")
+    set_extension_direction(90.0)  # +Y direction
+    
+    print("Calibration complete. Extension arm now points in +Y direction.")
 
 
 def send_commands(commands):

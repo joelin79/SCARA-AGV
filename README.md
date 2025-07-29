@@ -13,19 +13,25 @@ This system integrates:
 
 ## Quick Start
 
-### 1. Test Your Setup
+### 1. Test Extension Arm (Hardware Setup)
+```bash
+# Test extension arm functionality and calibration
+python test_extension_arm.py
+```
+
+### 2. Test Vision System
 ```bash
 # Test camera and detection without moving the arm
 python demo_detection.py
 ```
 
-### 2. Camera Calibration (First Time Setup)
+### 3. Camera Calibration (First Time Setup)
 ```bash
 # Calibrate camera with checkerboard pattern
 python camera_calib.py
 ```
 
-### 3. Run Complete Object Detection
+### 4. Run Complete Object Detection
 ```bash
 # Automated workspace scan and object detection
 python execute.py
@@ -46,12 +52,19 @@ python execute.py
 pip install opencv-python ultralytics numpy PyYAML pygame
 ```
 
-## Camera Setup
+## Hardware Setup
 
-The D435i camera should be:
-- Mounted on the SCARA arm
+### Extension Arm Configuration
+- **Extension arm** attached to J4 joint
+- **Suction cup** at 45mm from J4 center
+- **D435i camera** at 140mm from J4 center
+- **Extension arm orientation**: Always points in +X direction during operation
+
+### Camera Setup
+The D435i camera is now mounted on the extension arm:
+- Mounted 140mm from J4 center on extension arm
 - Facing downward (-Z direction)
-- Aligned to the -X direction of the arm
+- Extension arm maintains +X orientation (90° cartesian)
 - Height: ~30cm (300mm) above work surface
 
 ## Usage Guide
@@ -88,10 +101,17 @@ detections = detector.detect_objects_in_image(image, (200, 0, 200))
 - Z-axis: Up/down
 - Workspace: ~410mm radius from origin
 
+**Extension Arm Coordinates:**
+- Cartesian directions: 0° = +X, 90° = +Y, -90° = -Y, ±180° = -X
+- Extension arm automatically maintains +Y direction (90°) during operation (default)
+- Suction cup: 45mm from J4 center along extension arm
+- Camera: 140mm from J4 center along extension arm
+
 **Camera Coordinates:**
-- Facing down, aligned to -X direction
-- 1280x720 resolution
+- Mounted on extension arm pointing +X direction
+- Facing down, 1280x720 resolution
 - Objects detected at Z=0 (work surface)
+- Camera position automatically calculated from end effector + 140mm in +X
 
 ## Calibration
 
@@ -143,15 +163,38 @@ objects = detector.scan_workspace_and_detect_objects(
 - **Unreachable positions**: Check workspace limits in `scara_workspace_domain_grapher.py`
 - **Communication errors**: Verify serial connection to arm controller
 
+## Extension Arm Functions
+
+### New SCARA.py Functions
+```python
+# Extension arm control
+set_extension_direction(90.0)  # Point extension arm in +Y direction (default)
+calculate_j4_for_cartesian_direction(j1, j2, angle)  # Calculate required J4
+
+# Position utilities  
+get_suction_cup_position()  # Returns (x, y, z) of suction cup
+get_camera_position()       # Returns (x, y, z) of camera
+
+# Enhanced movement with automatic extension control
+quick(x, y, z, maintain_extension_direction=True, extension_angle=90.0)  # Default +Y
+linear(x, y, z, maintain_extension_direction=True, extension_angle=90.0)  # Default +Y
+```
+
+### Enhanced Collision Checking
+- Extension arm collision detection with base
+- Safety margins for suction cup and camera positions
+- Automatic workspace boundary checking
+
 ## File Structure
 
 ```
 SCARA-AGV/
-├── ObjectDetection.py      # Main detection system
+├── ObjectDetection.py      # Main detection system (updated for extension arm)
 ├── execute.py              # Easy run script
 ├── demo_detection.py       # Test individual components
+├── test_extension_arm.py   # Extension arm functionality tests
 ├── camera_calib.py         # Camera calibration
-├── SCARA.py               # Arm control
+├── SCARA.py               # Arm control (updated with extension arm)
 ├── yolo_detection.py      # Object detection
 ├── yolo/my_model/         # Trained YOLO model
 ├── detections_output/     # Output images
@@ -160,26 +203,43 @@ SCARA-AGV/
 
 ## Advanced Usage
 
+### Extension Arm Calibration Process
+1. **Physical Setup**: Manually align extension arm parallel to J2 arm segment
+2. **Run Calibration**: Execute `python SCARA.py` or call `calibrate()` function
+3. **Automatic Setup**: System sets J4=0° and moves extension to +Y direction (default)
+4. **Verification**: Use `test_extension_arm.py` to verify proper operation
+
+### Custom Extension Arm Orientations
+```python
+# Move with different extension arm directions
+quick(x, y, z, maintain_extension_direction=True, extension_angle=90)   # +Y direction (default)
+quick(x, y, z, maintain_extension_direction=True, extension_angle=0)    # +X direction
+quick(x, y, z, maintain_extension_direction=True, extension_angle=180)  # -X direction
+quick(x, y, z, maintain_extension_direction=True, extension_angle=-90)  # -Y direction
+```
+
+### Pick-and-Place with Extension Arm
+```python
+from object_coordinates import object_coordinates
+from SCARA import quick, get_suction_cup_position, EXTENSION_SUCTION_LENGTH
+
+for obj_x, obj_y, obj_z in object_coordinates:
+    # Calculate end effector position to place suction cup at object
+    # Extension arm points +Y by default, so suction cup is 45mm in +Y direction
+    end_x = obj_x
+    end_y = obj_y - EXTENSION_SUCTION_LENGTH  # Account for 45mm offset in +Y
+    end_z = 200  # Working height
+    
+    quick(end_x, end_y, end_z)  # Extension arm automatically points +Y
+    # Suction cup is now positioned over the object
+    # Add suction control here
+```
+
 ### Custom Object Classes
 Modify your YOLO model training to detect specific objects for your application.
 
-### Multiple Camera Heights
-Adjust `camera_height` parameter based on your mounting configuration.
-
 ### Custom Scan Patterns
-Override `generate_scan_positions()` to create custom scanning paths.
-
-### Integration with Pick-and-Place
-Use the generated coordinates with your existing arm control system:
-
-```python
-from object_coordinates import object_coordinates
-from SCARA import quick
-
-for x, y, z in object_coordinates:
-    quick(x, y, z)  # Move to object
-    # Add suction/gripper control here
-```
+Override `generate_scan_positions()` to create custom scanning paths that account for the camera's 140mm offset.
 
 ## Safety Notes
 

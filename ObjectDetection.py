@@ -12,7 +12,8 @@ import tempfile
 from SCARA import (
     quick, coordinate_mode, angles_to_cartesian, cartesian_to_angles,
     check_joint_limits, LENGTH_J1, LENGTH_J2, ORIGIN_X, ORIGIN_Y, ORIGIN_Z,
-    CUR_X, CUR_Y, CUR_Z
+    CUR_X, CUR_Y, CUR_Z, EXTENSION_CAMERA_LENGTH, EXTENSION_SUCTION_LENGTH,
+    calculate_j4_for_cartesian_direction
 )
 
 class SCARAObjectDetection:
@@ -98,7 +99,7 @@ class SCARAObjectDetection:
         
         Args:
             pixel_x, pixel_y: Pixel coordinates in image
-            arm_x, arm_y, arm_z: Current arm position when image was taken
+            arm_x, arm_y, arm_z: Current arm end effector position when image was taken
             
         Returns:
             World coordinates (x, y, z) in arm coordinate system
@@ -123,20 +124,23 @@ class SCARAObjectDetection:
         x_camera = x_norm * z_camera
         y_camera = y_norm * z_camera
         
-        # Transform from camera coordinates to robot coordinates
-        # Camera is aligned to -x direction and faces down
-        # Camera X axis = Robot -Y axis
-        # Camera Y axis = Robot +Z axis (but we're looking down, so this is inverted)
-        # Camera Z axis = Robot -X axis
+        # Calculate camera position
+        # Extension arm always points in +Y direction (90° cartesian)
+        # Camera is at EXTENSION_CAMERA_LENGTH from J4 center along extension arm
+        extension_angle_rad = math.radians(90)  # +Y direction
         
-        # Object position relative to camera mount point
-        dx = -z_camera  # Camera looks in -X direction from arm position
-        dy = -x_camera  # Camera X maps to -Y in robot coordinates
-        dz = y_camera   # Camera Y maps to Z, but objects are on surface so dz ≈ 0
+        camera_x = arm_x + EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
+        camera_y = arm_y + EXTENSION_CAMERA_LENGTH * math.sin(extension_angle_rad)
         
-        # Transform to world coordinates
-        world_x = arm_x + dx
-        world_y = arm_y + dy
+        # Transform from camera coordinates to world coordinates
+        # Camera faces down and is aligned with +X direction
+        # Camera X axis = World +Y axis  
+        # Camera Y axis = World -X axis
+        # Camera Z axis = World -Z axis (downward)
+        
+        # Object position in world coordinates
+        world_x = camera_x - y_camera  # Camera Y maps to -X offset
+        world_y = camera_y + x_camera  # Camera X maps to +Y offset
         world_z = z_world  # Objects on work surface
         
         return world_x, world_y, world_z
@@ -159,14 +163,19 @@ class SCARAObjectDetection:
             grid_size: Number of positions along each axis
             
         Returns:
-            List of (x, y, z) positions for scanning
+            List of (x, y, z) end effector positions for scanning
         """
         positions = []
         
         # Define scanning area based on arm workspace
         # Right-handed mode workspace is roughly a circle with some restrictions
-        x_min, x_max = 50, 400  # Conservative range
-        y_min, y_max = -300, 300
+        # Account for extension arm - we want the camera to cover the workspace
+        # So the end effector should be positioned such that camera covers desired area
+        
+        # Camera is 140mm ahead of end effector in +Y direction
+        # Adjust scanning range accordingly
+        x_min, x_max = 50, 350
+        y_min, y_max = -250 - EXTENSION_CAMERA_LENGTH, 250 - EXTENSION_CAMERA_LENGTH
         z_scan = ORIGIN_Z  # Keep Z at origin height
         
         x_step = (x_max - x_min) / (grid_size - 1)
@@ -181,7 +190,7 @@ class SCARAObjectDetection:
                 if self.is_point_in_workspace(x, y):
                     positions.append((x, y, z_scan))
         
-        print(f"Generated {len(positions)} scan positions")
+        print(f"Generated {len(positions)} scan positions (end effector positions)")
         return positions
     
     def capture_image_at_position(self, x: float, y: float, z: float, 
@@ -190,17 +199,17 @@ class SCARAObjectDetection:
         Move arm to position and capture image
         
         Args:
-            x, y, z: Target position for arm
+            x, y, z: Target end effector position
             camera_index: Camera device index
             
         Returns:
             Captured image as numpy array
         """
         try:
-            # Move arm to position
-            print(f"Moving to position ({x:.1f}, {y:.1f}, {z:.1f})")
-            quick(x, y, z)
-            time.sleep(1.0)  # Wait for arm to stabilize
+            # Move arm to position with extension arm pointing +Y (90°)
+            print(f"Moving to position ({x:.1f}, {y:.1f}, {z:.1f}) with extension arm at +Y")
+            quick(x, y, z, maintain_extension_direction=True, extension_angle=90.0)
+            time.sleep(1.5)  # Wait for arm to stabilize (longer due to extension arm movement)
             
             # Capture image
             cap = cv2.VideoCapture(camera_index)
