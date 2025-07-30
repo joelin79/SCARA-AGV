@@ -4,7 +4,7 @@ import ssl
 ssl._create_default_https_context = ssl._create_unverified_context
 
 # Initialize a YOLO-World model
-model = YOLOWorld("yolov8s-world.pt")
+model = YOLOWorld("../yolov8s-world.pt")
 
 # Define custom classes
 model.set_classes(["small green blocks"])

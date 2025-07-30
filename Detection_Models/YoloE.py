@@ -1,7 +1,7 @@
 from ultralytics import YOLOE
 
 # Initialize a YOLOE model
-model = YOLOE("yoloe-11l-seg.pt")  # or select yoloe-11s/m-seg.pt for different sizes
+model = YOLOE("../yoloe-11l-seg.pt")  # or select yoloe-11s/m-seg.pt for different sizes
 
 # Set text prompt to detect person and bus. You only need to do this once after you load the model.
 names = ["small green block top surface","tissue","drink","plastic bottle","pen","paper","folder"]

@@ -1,5 +1,5 @@
 import os
-output_dir = "detections_output"
+output_dir = "../detections_output"
 os.makedirs(output_dir, exist_ok=True)
 import sys
 import argparse

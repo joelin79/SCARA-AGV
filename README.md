@@ -133,7 +133,7 @@ If no calibration file exists, default D435i parameters are used:
 ```python
 detector = SCARAObjectDetection(
     model_path="yolo/my_model/my_model.pt",  # YOLO model path
-    confidence_threshold=0.5,                # Detection confidence
+    confidence_threshold=0.5,                # Detection_Models confidence
     camera_height=300.0,                     # Camera height (mm)
     calib_file="calib_params.yaml"          # Calibration file
 )

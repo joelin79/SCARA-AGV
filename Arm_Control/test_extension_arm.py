@@ -97,7 +97,7 @@ def test_extension_arm_positions():
 
 def test_collision_detection():
     """Test collision detection with the two-sided extension arm."""
-    print("\n=== Testing Collision Detection ===")
+    print("\n=== Testing Collision Detection_Models ===")
     
     # Test safe position
     j1, j2, j4 = 0, 0, 0  # Straight out

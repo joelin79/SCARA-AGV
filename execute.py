@@ -1,13 +1,13 @@
 #!/usr/bin/env python3
 """
-Execute the SCARA Object Detection System
+Execute the SCARA Object Detection_Models System
 Run this script to start the automated object detection and coordinate transformation
 """
 
-from ObjectDetection import SCARAObjectDetection
+from Detection_Models.ObjectDetection import SCARAObjectDetection
 
 def main():
-    print("SCARA AGV Object Detection System")
+    print("SCARA AGV Object Detection_Models System")
     print("=" * 50)
     
     # Initialize the detection system
@@ -52,7 +52,7 @@ def main():
             print(f"\nResults saved:")
             print(f"  - object_coordinates.txt (human readable)")
             print(f"  - object_coordinates.py (Python import)")
-            print(f"  - Detection images in detections_output/")
+            print(f"  - Detection_Models images in detections_output/")
             
         else:
             print("No objects detected. Check camera connection and object visibility.")

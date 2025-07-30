@@ -4,16 +4,14 @@ import yaml
 import os
 import math
 import time
-from typing import List, Tuple, Dict, Any
+from typing import List, Tuple, Dict
 from ultralytics import YOLO
-import tempfile
 
 # Import SCARA functions
 from SCARA import (
-    quick, coordinate_mode, angles_to_cartesian, cartesian_to_angles,
-    check_joint_limits, LENGTH_J1, LENGTH_J2, ORIGIN_X, ORIGIN_Y, ORIGIN_Z,
-    CUR_X, CUR_Y, CUR_Z, EXTENSION_CAMERA_LENGTH, EXTENSION_SUCTION_LENGTH,
-    calculate_j4_for_cartesian_direction
+    quick, coordinate_mode, cartesian_to_angles,
+    check_joint_limits, ORIGIN_Z,
+    EXTENSION_CAMERA_LENGTH
 )
 
 class SCARAObjectDetection:
@@ -23,7 +21,7 @@ class SCARAObjectDetection:
                  camera_height: float = 300.0,  # 30cm in mm
                  confidence_threshold: float = 0.5):
         """
-        Initialize SCARA Object Detection System
+        Initialize SCARA Object Detection_Models System
         
         Args:
             model_path: Path to YOLO model
@@ -48,7 +46,7 @@ class SCARAObjectDetection:
         # Load or create calibration parameters
         self.load_calibration_params()
         
-        # Detection results
+        # Detection_Models results
         self.detected_objects = []
         
         # Set coordinate mode
@@ -372,7 +370,7 @@ class SCARAObjectDetection:
     
     def save_detection_image(self, image: np.ndarray, detections: List[Dict], filename: str):
         """Save image with detection annotations"""
-        output_dir = "detections_output"
+        output_dir = "../detections_output"
         os.makedirs(output_dir, exist_ok=True)
         
         annotated_image = image.copy()
@@ -439,7 +437,7 @@ def main():
     """Main function to run the object detection system"""
     # Initialize the detection system
     detector = SCARAObjectDetection(
-        model_path="yolo/my_model/my_model.pt",
+        model_path="../yolo/my_model/my_model.pt",
         confidence_threshold=0.5
     )
     

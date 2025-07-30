@@ -59,7 +59,7 @@ def test_yolo_detection():
     
     # Initialize detector
     detector = SCARAObjectDetection(
-        model_path="yolo/my_model/my_model.pt",
+        model_path="../yolo/my_model/my_model.pt",
         confidence_threshold=0.3
     )
     
@@ -101,7 +101,7 @@ def test_coordinate_transformation():
 
 def demo_single_image_detection():
     """Demo detection on a single image without moving the arm"""
-    print("\nSingle Image Detection Demo")
+    print("\nSingle Image Detection_Models Demo")
     print("="*40)
     
     # Test camera first
@@ -121,7 +121,7 @@ def demo_single_image_detection():
 
 def main():
     """Main demo menu"""
-    print("SCARA Object Detection Demo")
+    print("SCARA Object Detection_Models Demo")
     print("="*30)
     print("1. Test camera connection")
     print("2. Test YOLO detection on static image")
