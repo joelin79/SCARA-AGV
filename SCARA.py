@@ -3,7 +3,7 @@ import time
 import pygame
 import math
 
-ser = serial.Serial(port='/dev/tty.usbserial-10', baudrate=115200, timeout=1)
+ser = serial.Serial(port='/dev/tty.usbserial-110', baudrate=115200, timeout=1)
 
 RIGHT_HANDED_MODE = True
 
@@ -55,11 +55,12 @@ LIMIT_J4_MIN = -180
 
 def calculate_j4_for_cartesian_direction(j1: float, j2: float, cartesian_angle: float) -> float:
     """
-    Calculate J4 angle needed to point extension arm in specified cartesian direction.
+    Calculate J4 angle needed to point extension arm camera in specified cartesian direction.
+    The suction cup will automatically point in the opposite direction.
     
     Args:
         j1, j2: Current joint angles (degrees)
-        cartesian_angle: Target direction in cartesian coordinates (degrees)
+        cartesian_angle: Target camera direction in cartesian coordinates (degrees)
                         0° = +X direction, 90° = +Y direction, -90° = -Y direction, ±180° = -X direction
     
     Returns:
@@ -86,10 +87,11 @@ def calculate_j4_for_cartesian_direction(j1: float, j2: float, cartesian_angle: 
 
 def set_extension_direction(cartesian_angle: float):
     """
-    Set extension arm to point in specified cartesian direction.
+    Set extension arm camera to point in specified cartesian direction.
+    The suction cup will automatically point in the opposite direction (180° offset).
     
     Args:
-        cartesian_angle: Target direction (0° = +X, 90° = +Y, -90° = -Y, ±180° = -X)
+        cartesian_angle: Target camera direction (0° = +X, 90° = +Y, -90° = -Y, ±180° = -X)
     """
     global CUR_J1, CUR_J2, CUR_J4
     
@@ -100,13 +102,17 @@ def set_extension_direction(cartesian_angle: float):
     if not (LIMIT_J4_MIN <= required_j4 <= LIMIT_J4_MAX):
         raise ValueError(f"Required J4 angle {required_j4:.2f}° is out of range [{LIMIT_J4_MIN}, {LIMIT_J4_MAX}]")
     
-    # Send J4 command in angle mode
-    angle_mode()
-    send_commands([f"G0 I{CUR_J1:.3f} J{CUR_J2:.3f} K{CUR_J3:.3f} L{required_j4:.3f}"])
+    # Send J4 command (I parameter works in coordinate mode)
+    send_commands([f"G0 X{CUR_X:.3f} Y{CUR_Y:.3f} Z{CUR_Z:.3f} I{required_j4:.3f}"])
     CUR_J4 = required_j4
-    coordinate_mode()
     
-    print(f"Extension arm set to {cartesian_angle:.1f}° (J4 = {required_j4:.2f}°)")
+    # Calculate suction cup direction (opposite to camera)
+    suction_angle = cartesian_angle + 180
+    if suction_angle > 180:
+        suction_angle -= 360
+    
+    print(f"Camera set to {cartesian_angle:.1f}° (J4 = {required_j4:.2f}°)")
+    print(f"Suction cup automatically set to {suction_angle:.1f}° (opposite direction)")
 
 def get_suction_cup_position() -> tuple[float, float, float]:
     """
@@ -115,14 +121,18 @@ def get_suction_cup_position() -> tuple[float, float, float]:
     Returns:
         (x, y, z) position of suction cup center
     """
-    global CUR_X, CUR_Y, CUR_Z, CUR_J4
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
     
-    # Extension arm absolute angle (assuming it points -Y = -90°)
-    extension_angle_rad = math.radians(-90)  # -Y direction
+    # Calculate extension arm absolute angle
+    extension_absolute_angle = CUR_J1 + CUR_J2 + CUR_J4
+    extension_rad = math.radians(extension_absolute_angle)
+    
+    # Suction cup is on the opposite side of the camera (180° offset)
+    suction_angle_rad = extension_rad + math.pi  # 180° offset
     
     # Suction cup position
-    suction_x = CUR_X + EXTENSION_SUCTION_LENGTH * math.cos(extension_angle_rad)
-    suction_y = CUR_Y + EXTENSION_SUCTION_LENGTH * math.sin(extension_angle_rad)
+    suction_x = CUR_X + EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
+    suction_y = CUR_Y + EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
     suction_z = CUR_Z  # Same height as end effector
     
     return (suction_x, suction_y, suction_z)
@@ -134,17 +144,70 @@ def get_camera_position() -> tuple[float, float, float]:
     Returns:
         (x, y, z) position of camera center
     """
-    global CUR_X, CUR_Y, CUR_Z, CUR_J4
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
     
-    # Extension arm absolute angle (assuming it points -Y = -90°)
-    extension_angle_rad = math.radians(-90)  # -Y direction
+    # Calculate extension arm absolute angle
+    extension_absolute_angle = CUR_J1 + CUR_J2 + CUR_J4
+    extension_rad = math.radians(extension_absolute_angle)
     
-    # Camera position
-    camera_x = CUR_X + EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
-    camera_y = CUR_Y + EXTENSION_CAMERA_LENGTH * math.sin(extension_angle_rad)
+    # Camera position (points in the direction of the extension arm)
+    camera_x = CUR_X + EXTENSION_CAMERA_LENGTH * math.cos(extension_rad)
+    camera_y = CUR_Y + EXTENSION_CAMERA_LENGTH * math.sin(extension_rad)
     camera_z = CUR_Z  # Same height as end effector
     
     return (camera_x, camera_y, camera_z)
+
+def get_camera_direction() -> float:
+    """
+    Get current camera direction in cartesian coordinates.
+    
+    Returns:
+        Camera direction angle in degrees (0° = +X, 90° = +Y, -90° = -Y, ±180° = -X)
+    """
+    global CUR_J1, CUR_J2, CUR_J4
+    
+    # Calculate extension arm absolute angle
+    extension_absolute_angle = CUR_J1 + CUR_J2 + CUR_J4
+    
+    # Normalize to [-180, 180]
+    while extension_absolute_angle > 180:
+        extension_absolute_angle -= 360
+    while extension_absolute_angle <= -180:
+        extension_absolute_angle += 360
+    
+    return extension_absolute_angle
+
+def get_suction_cup_direction() -> float:
+    """
+    Get current suction cup direction in cartesian coordinates.
+    
+    Returns:
+        Suction cup direction angle in degrees (0° = +X, 90° = +Y, -90° = -Y, ±180° = -X)
+    """
+    camera_direction = get_camera_direction()
+    suction_direction = camera_direction + 180
+    
+    # Normalize to [-180, 180]
+    if suction_direction > 180:
+        suction_direction -= 360
+    
+    return suction_direction
+
+def set_suction_cup_direction(cartesian_angle: float):
+    """
+    Set extension arm suction cup to point in specified cartesian direction.
+    The camera will automatically point in the opposite direction (180° offset).
+    
+    Args:
+        cartesian_angle: Target suction cup direction (0° = +X, 90° = +Y, -90° = -Y, ±180° = -X)
+    """
+    # Calculate camera direction (opposite to suction cup)
+    camera_angle = cartesian_angle + 180
+    if camera_angle > 180:
+        camera_angle -= 360
+    
+    # Use the existing function to set camera direction
+    set_extension_direction(camera_angle)
 
 def check_extension_arm_collision(j1: float, j2: float, j4: float) -> None:
     """
@@ -161,13 +224,14 @@ def check_extension_arm_collision(j1: float, j2: float, j4: float) -> None:
     extension_absolute_angle = j1 + j2 + j4
     extension_rad = math.radians(extension_absolute_angle)
     
-    # Check suction cup position
-    suction_x = end_x + EXTENSION_SUCTION_LENGTH * math.cos(extension_rad)
-    suction_y = end_y + EXTENSION_SUCTION_LENGTH * math.sin(extension_rad)
-    
-    # Check camera position  
+    # Camera position (points in the direction of the extension arm)
     camera_x = end_x + EXTENSION_CAMERA_LENGTH * math.cos(extension_rad)
     camera_y = end_y + EXTENSION_CAMERA_LENGTH * math.sin(extension_rad)
+    
+    # Suction cup position (opposite side of camera, 180° offset)
+    suction_angle_rad = extension_rad + math.pi  # 180° offset
+    suction_x = end_x + EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
+    suction_y = end_y + EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
     
     # Check collision with base (enlarged safety zone due to extension)
     base_collision_zone = 120  # mm, increased from 100mm
@@ -324,7 +388,8 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-9
         x, y, z: Target position
         f: Feedrate
         maintain_extension_direction: If True, automatically maintain extension direction
-        extension_angle: Target extension direction in cartesian coordinates (default: -Y = -90°)
+        extension_angle: Target camera direction in cartesian coordinates (default: -Y = -90°)
+                        Suction cup will automatically point in opposite direction
     """
     global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
     
@@ -343,9 +408,7 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-9
         
         # Update J4 if needed
         if abs(required_j4 - CUR_J4) > 0.1:  # Only update if significant change
-            angle_mode()
-            send_commands([f"G0 L{required_j4:.3f}"])
-            coordinate_mode()
+            send_commands([f"G0 X{CUR_X:.3f} Y{CUR_Y:.3f} Z{CUR_Z:.3f} I{required_j4:.3f}"])
             CUR_J4 = required_j4
         
         # Update current position
@@ -366,7 +429,8 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         x, y, z: Target position
         f: Feedrate
         maintain_extension_direction: If True, automatically maintain extension direction
-        extension_angle: Target extension direction in cartesian coordinates (default: -Y = -90°)
+        extension_angle: Target camera direction in cartesian coordinates (default: -Y = -90°)
+                        Suction cup will automatically point in opposite direction
     """
     global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
     
@@ -385,9 +449,7 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         
         # Update J4 if needed
         if abs(required_j4 - CUR_J4) > 0.1:  # Only update if significant change
-            angle_mode()
-            send_commands([f"G1 L{required_j4:.3f}"])
-            coordinate_mode()
+            send_commands([f"G1 X{CUR_X:.3f} Y{CUR_Y:.3f} Z{CUR_Z:.3f} I{required_j4:.3f}"])
             CUR_J4 = required_j4
         
         # Update current position
@@ -449,15 +511,15 @@ def calibrate():
     
     # Set J4 origin (extension parallel to J2 arm = 0 degrees)
     angle_mode()
-    send_commands([f"G92 L0"])  # Set current J4 position as 0 degrees
+    send_commands([f"G92 I0"])  # Set current J4 position as 0 degrees
     CUR_J4 = 0
     coordinate_mode()
     
-    # Set extension arm to point in -Y direction (-90 degrees cartesian)
-    print("Setting extension arm to point in -Y direction...")
+    # Set extension arm camera to point in -Y direction (-90 degrees cartesian)
+    print("Setting extension arm camera to point in -Y direction...")
     set_extension_direction(-90.0)  # -Y direction
     
-    print("Calibration complete. Extension arm now points in -Y direction.")
+    print("Calibration complete. Camera now points in -Y direction, suction cup in +Y direction.")
 
 
 def send_commands(commands):
@@ -466,17 +528,7 @@ def send_commands(commands):
         print(f"Sent: {cmd}")
         time.sleep(0.02)
 
-
-calibrate()
-# quick(410,0,100,6000)
-# # quick(ORIGIN_X,ORIGIN_Y,ORIGIN_Z)
-#
-# angle_mode()
-# set_origin(0,0,200)
-# quick(ORIGIN_J1,ORIGIN_J2,ORIGIN_J3,1000)
-coordinate_mode()
-
-STEP_CART = 1  # mm step for cartesian movements
+STEP_CART = 3  # mm step for cartesian movements
 STEP_ANG = 1   # degree step for joint angle movements
 
 def keyboard_control_pygame():
@@ -577,3 +629,14 @@ def keyboard_control_pygame():
         clock.tick(30)
 
     pygame.quit()
+
+if __name__ == '__main__':
+    calibrate()
+    # quick(410,0,100,6000)
+    # # quick(ORIGIN_X,ORIGIN_Y,ORIGIN_Z)
+    #
+    # angle_mode()
+    # set_origin(0,0,200)
+    # quick(ORIGIN_J1,ORIGIN_J2,ORIGIN_J3,1000)
+    coordinate_mode()
+    keyboard_control_pygame()
