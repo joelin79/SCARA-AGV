@@ -724,22 +724,24 @@ def terminal_control():
                         print("Usage: angle <j1> <j2> <j3> <j4>")
                 except ValueError as e:
                     print(f"Invalid angles or limit error: {e}")
+                except Exception as e:
+                    print(f"Error: {e}")
                     
             elif command.startswith('camera '):
                 try:
                     angle = float(command.split()[1])
                     print(f"Setting camera direction to {angle:.1f}°")
                     set_extension_direction(angle)
-                except (ValueError, IndexError):
-                    print("Usage: camera <angle>")
+                except (ValueError, IndexError) as e:
+                    print(f"Invalid camera angle: {e}")
                     
             elif command.startswith('suction '):
                 try:
                     angle = float(command.split()[1])
                     print(f"Setting suction cup direction to {angle:.1f}°")
                     set_suction_cup_direction(angle)
-                except (ValueError, IndexError):
-                    print("Usage: suction <angle>")
+                except (ValueError, IndexError) as e:
+                    print(f"Invalid suction angle: {e}")
                     
             elif command == '':
                 continue
