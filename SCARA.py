@@ -398,22 +398,17 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-9
         j1, j2 = cartesian_to_angles(x, y)
         
         # Calculate required J4 for maintaining extension direction
-        required_j4 = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
         
         # Check limits including extension arm collision
-        check_joint_limits(j1, j2, z, required_j4)
+        check_joint_limits(j1, j2, z, i)
         
         # Move with coordinated J4
-        send_commands([f"G0 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
-        
-        # Update J4 if needed
-        if abs(required_j4 - CUR_J4) > 0.1:  # Only update if significant change
-            send_commands([f"G0 X{CUR_X:.3f} Y{CUR_Y:.3f} Z{CUR_Z:.3f} I{required_j4:.3f}"])
-            CUR_J4 = required_j4
+        send_commands([f"G0 X{x:.3f} Y{y:.3f} Z{z:.3f} I{i:.3f} F{f}"])
         
         # Update current position
         CUR_X, CUR_Y, CUR_Z = x, y, z
-        CUR_J1, CUR_J2 = j1, j2
+        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
         
     else:
         # Standard movement without extension arm control
@@ -439,22 +434,17 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         j1, j2 = cartesian_to_angles(x, y)
         
         # Calculate required J4 for maintaining extension direction
-        required_j4 = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
         
         # Check limits including extension arm collision
-        check_joint_limits(j1, j2, z, required_j4)
+        check_joint_limits(j1, j2, z, i)
         
         # Move with coordinated J4
-        send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
-        
-        # Update J4 if needed
-        if abs(required_j4 - CUR_J4) > 0.1:  # Only update if significant change
-            send_commands([f"G1 X{CUR_X:.3f} Y{CUR_Y:.3f} Z{CUR_Z:.3f} I{required_j4:.3f}"])
-            CUR_J4 = required_j4
+        send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} I{i:.3f} F{f}"])
         
         # Update current position
         CUR_X, CUR_Y, CUR_Z = x, y, z
-        CUR_J1, CUR_J2 = j1, j2
+        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
         
     else:
         # Standard movement without extension arm control
@@ -541,9 +531,15 @@ def keyboard_control_pygame():
 
     mode = 'coord'  # 'coord' or 'angle'
     coordinate_mode()
+    
+    # Movement debouncing
+    last_move_time = 0
+    move_delay = 0.1  # 100ms delay between movements
 
     running = True
     while running:
+        current_time = time.time()
+        
         for event in pygame.event.get():
             if event.type == pygame.QUIT:
                 running = False
@@ -568,6 +564,11 @@ def keyboard_control_pygame():
                         print("Switched to coordinate mode")
                     continue
 
+        # Only process movement if enough time has passed
+        if current_time - last_move_time < move_delay:
+            clock.tick(30)
+            continue
+
         keys = pygame.key.get_pressed()
 
         if mode == 'coord':
@@ -587,8 +588,9 @@ def keyboard_control_pygame():
                 try:
                     j1, j2 = cartesian_to_angles(new_x, new_y, L1=LENGTH_J1, L2=LENGTH_J2)
                     check_joint_limits(j1, j2, CUR_Z, CUR_J4)
-                    quick(new_x, new_y, CUR_Z)
+                    quick(new_x, new_y, CUR_Z, maintain_extension_direction=True, extension_angle=-90.0)
                     CUR_X, CUR_Y = new_x, new_y
+                    last_move_time = current_time
                 except ValueError as e:
                     print(f"Limit error: {e}")
 
@@ -620,15 +622,136 @@ def keyboard_control_pygame():
                 new_j4 = CUR_J4 + dj4
                 try:
                     check_joint_limits(new_j1, new_j2, new_j3, new_j4)
-                    angle_mode()
-                    quick(new_j1, new_j2, new_j3)
+                    # Send direct G-code command for angle mode
+                    send_commands([f"G0 X{new_j1:.3f} Y{new_j2:.3f} Z{new_j3:.3f} I{new_j4:.3f}"])
                     CUR_J1, CUR_J2, CUR_J3, CUR_J4 = new_j1, new_j2, new_j3, new_j4
+                    last_move_time = current_time
                 except ValueError as e:
                     print(f"Limit error: {e}")
 
         clock.tick(30)
 
     pygame.quit()
+
+def terminal_control():
+    """
+    Terminal interface for controlling the SCARA robot.
+    Allows direct input of coordinates or angles.
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J3, CUR_J4
+    
+    print("\n" + "="*50)
+    print("SCARA Terminal Control Interface")
+    print("="*50)
+    print("Commands:")
+    print("  coord <x> <y> <z>     - Move to cartesian coordinates")
+    print("  angle <j1> <j2> <j3> <j4> - Move to joint angles")
+    print("  home                  - Move to home position")
+    print("  cal                   - Run calibration")
+    print("  status                - Show current position")
+    print("  camera <angle>        - Set camera direction (suction cup opposite)")
+    print("  suction <angle>       - Set suction cup direction (camera opposite)")
+    print("  quit                  - Exit")
+    print("="*50)
+    
+    coordinate_mode()
+    
+    while True:
+        try:
+            # Show current position
+            print(f"\nCurrent position:")
+            print(f"  Cartesian: X={CUR_X:.1f}, Y={CUR_Y:.1f}, Z={CUR_Z:.1f}")
+            print(f"  Joints: J1={CUR_J1:.1f}°, J2={CUR_J2:.1f}°, J3={CUR_J3:.1f}°, J4={CUR_J4:.1f}°")
+            camera_pos = get_camera_position()
+            suction_pos = get_suction_cup_position()
+            print(f"  Camera: ({camera_pos[0]:.1f}, {camera_pos[1]:.1f}, {camera_pos[2]:.1f})")
+            print(f"  Suction: ({suction_pos[0]:.1f}, {suction_pos[1]:.1f}, {suction_pos[2]:.1f})")
+            
+            # Get user input
+            command = input("\nEnter command: ").strip().lower()
+            
+            if command == 'quit' or command == 'exit':
+                print("Exiting terminal control...")
+                break
+                
+            elif command == 'home':
+                print("Moving to home position...")
+                quick(ORIGIN_X, ORIGIN_Y, ORIGIN_Z, maintain_extension_direction=True, extension_angle=-90.0)
+                CUR_X, CUR_Y, CUR_Z = ORIGIN_X, ORIGIN_Y, ORIGIN_Z
+                CUR_J1, CUR_J2, CUR_J3, CUR_J4 = ORIGIN_J1, ORIGIN_J2, ORIGIN_J3, 0
+                
+            elif command == 'cal':
+                print("Running calibration...")
+                calibrate()
+                
+            elif command == 'status':
+                # Status already shown above
+                continue
+                
+            elif command.startswith('coord '):
+                try:
+                    parts = command.split()
+                    if len(parts) == 4:
+                        x = float(parts[1])
+                        y = float(parts[2])
+                        z = float(parts[3])
+                        print(f"Moving to coordinates: X={x:.1f}, Y={y:.1f}, Z={z:.1f}")
+                        quick(x, y, z, maintain_extension_direction=True, extension_angle=-90.0)
+                        CUR_X, CUR_Y, CUR_Z = x, y, z
+                        # Update joint angles
+                        CUR_J1, CUR_J2 = cartesian_to_angles(x, y)
+                    else:
+                        print("Usage: coord <x> <y> <z>")
+                except ValueError as e:
+                    print(f"Invalid coordinates: {e}")
+                    
+            elif command.startswith('angle '):
+                try:
+                    parts = command.split()
+                    if len(parts) == 5:
+                        j1 = float(parts[1])
+                        j2 = float(parts[2])
+                        j3 = float(parts[3])
+                        j4 = float(parts[4])
+                        print(f"Moving to angles: J1={j1:.1f}°, J2={j2:.1f}°, J3={j3:.1f}°, J4={j4:.1f}°")
+                        check_joint_limits(j1, j2, j3, j4)
+                        send_commands([f"G0 X{j1:.3f} Y{j2:.3f} Z{j3:.3f} I{j4:.3f}"])
+                        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, j3, j4
+                        # Update cartesian position
+                        CUR_X, CUR_Y = angles_to_cartesian(j1, j2)
+                        CUR_Z = j3
+                    else:
+                        print("Usage: angle <j1> <j2> <j3> <j4>")
+                except ValueError as e:
+                    print(f"Invalid angles or limit error: {e}")
+                    
+            elif command.startswith('camera '):
+                try:
+                    angle = float(command.split()[1])
+                    print(f"Setting camera direction to {angle:.1f}°")
+                    set_extension_direction(angle)
+                except (ValueError, IndexError):
+                    print("Usage: camera <angle>")
+                    
+            elif command.startswith('suction '):
+                try:
+                    angle = float(command.split()[1])
+                    print(f"Setting suction cup direction to {angle:.1f}°")
+                    set_suction_cup_direction(angle)
+                except (ValueError, IndexError):
+                    print("Usage: suction <angle>")
+                    
+            elif command == '':
+                continue
+                
+            else:
+                print("Unknown command. Type 'help' for available commands.")
+                
+        except KeyboardInterrupt:
+            print("\nExiting terminal control...")
+            break
+        except Exception as e:
+            print(f"Error: {e}")
 
 if __name__ == '__main__':
     calibrate()
@@ -639,4 +762,5 @@ if __name__ == '__main__':
     # set_origin(0,0,200)
     # quick(ORIGIN_J1,ORIGIN_J2,ORIGIN_J3,1000)
     coordinate_mode()
-    keyboard_control_pygame()
+    # keyboard_control_pygame()
+    terminal_control()
