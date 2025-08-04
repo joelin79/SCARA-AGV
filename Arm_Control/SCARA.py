@@ -451,6 +451,238 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         send_commands([f"G1 X{x:.3f} Y{y:.3f} Z{z:.3f} F{f}"])
         CUR_X, CUR_Y, CUR_Z = x, y, z
 
+# Camera position movement functions
+def quick_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+    """
+    Quick movement to camera position with automatic extension arm control.
+    
+    Args:
+        x, y, z: Target camera position (not end effector position)
+        f: Feedrate
+        maintain_extension_direction: If True, automatically maintain extension direction
+        extension_angle: Target camera direction in cartesian coordinates (default: -Y = -90°)
+                        Suction cup will automatically point in opposite direction
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
+    
+    # Calculate required end effector position to place camera at target
+    if maintain_extension_direction:
+        # Calculate the angle from current position to target camera position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        target_camera_angle = math.degrees(math.atan2(dy, dx))
+        
+        # Calculate end effector position that would place camera at target
+        camera_angle_rad = math.radians(target_camera_angle)
+        end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
+        end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
+        
+        # Calculate joint angles for end effector position
+        j1, j2 = cartesian_to_angles(end_x, end_y)
+        
+        # Calculate required J4 for maintaining extension direction
+        i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        
+        # Check limits including extension arm collision
+        check_joint_limits(j1, j2, z, i)
+        
+        # Move with coordinated J4
+        send_commands([f"G0 X{end_x:.3f} Y{end_y:.3f} Z{z:.3f} I{i:.3f} F{f}"])
+        
+        # Update current position
+        CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
+        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        
+    else:
+        # For non-maintained direction, we need to calculate the optimal end effector position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        distance = math.sqrt(dx**2 + dy**2)
+        
+        if distance < EXTENSION_CAMERA_LENGTH:
+            # Target is too close, move end effector directly
+            quick(x, y, z, f, maintain_extension_direction=False)
+        else:
+            # Calculate end effector position that would place camera at target
+            camera_angle_rad = math.atan2(dy, dx)
+            end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
+            end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
+            quick(end_x, end_y, z, f, maintain_extension_direction=False)
+
+def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+    """
+    Linear movement to camera position with automatic extension arm control.
+    
+    Args:
+        x, y, z: Target camera position (not end effector position)
+        f: Feedrate
+        maintain_extension_direction: If True, automatically maintain extension direction
+        extension_angle: Target camera direction in cartesian coordinates (default: -Y = -90°)
+                        Suction cup will automatically point in opposite direction
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
+    
+    # Calculate required end effector position to place camera at target
+    if maintain_extension_direction:
+        # Calculate the angle from current position to target camera position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        target_camera_angle = math.degrees(math.atan2(dy, dx))
+        
+        # Calculate end effector position that would place camera at target
+        camera_angle_rad = math.radians(target_camera_angle)
+        end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
+        end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
+        
+        # Calculate joint angles for end effector position
+        j1, j2 = cartesian_to_angles(end_x, end_y)
+        
+        # Calculate required J4 for maintaining extension direction
+        i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        
+        # Check limits including extension arm collision
+        check_joint_limits(j1, j2, z, i)
+        
+        # Move with coordinated J4
+        send_commands([f"G1 X{end_x:.3f} Y{end_y:.3f} Z{z:.3f} I{i:.3f} F{f}"])
+        
+        # Update current position
+        CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
+        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        
+    else:
+        # For non-maintained direction, we need to calculate the optimal end effector position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        distance = math.sqrt(dx**2 + dy**2)
+        
+        if distance < EXTENSION_CAMERA_LENGTH:
+            # Target is too close, move end effector directly
+            linear(x, y, z, f, maintain_extension_direction=False)
+        else:
+            # Calculate end effector position that would place camera at target
+            camera_angle_rad = math.atan2(dy, dx)
+            end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
+            end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
+            linear(end_x, end_y, z, f, maintain_extension_direction=False)
+
+# Suction cup position movement functions
+def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+    """
+    Quick movement to suction cup position with automatic extension arm control.
+    
+    Args:
+        x, y, z: Target suction cup position (not end effector position)
+        f: Feedrate
+        maintain_extension_direction: If True, automatically maintain extension direction
+        extension_angle: Target camera direction in cartesian coordinates (default: -Y = -90°)
+                        Suction cup will automatically point in opposite direction
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
+    
+    # Calculate required end effector position to place suction cup at target
+    if maintain_extension_direction:
+        # Calculate the angle from current position to target suction cup position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        target_suction_angle = math.degrees(math.atan2(dy, dx))
+        
+        # Calculate end effector position that would place suction cup at target
+        # Suction cup is 180° opposite to camera direction
+        suction_angle_rad = math.radians(target_suction_angle)
+        end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
+        end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
+        
+        # Calculate joint angles for end effector position
+        j1, j2 = cartesian_to_angles(end_x, end_y)
+        
+        # Calculate required J4 for maintaining extension direction
+        i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        
+        # Check limits including extension arm collision
+        check_joint_limits(j1, j2, z, i)
+        
+        # Move with coordinated J4
+        send_commands([f"G0 X{end_x:.3f} Y{end_y:.3f} Z{z:.3f} I{i:.3f} F{f}"])
+        
+        # Update current position
+        CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
+        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        
+    else:
+        # For non-maintained direction, we need to calculate the optimal end effector position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        distance = math.sqrt(dx**2 + dy**2)
+        
+        if distance < EXTENSION_SUCTION_LENGTH:
+            # Target is too close, move end effector directly
+            quick(x, y, z, f, maintain_extension_direction=False)
+        else:
+            # Calculate end effector position that would place suction cup at target
+            suction_angle_rad = math.atan2(dy, dx)
+            end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
+            end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
+            quick(end_x, end_y, z, f, maintain_extension_direction=False)
+
+def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+    """
+    Linear movement to suction cup position with automatic extension arm control.
+    
+    Args:
+        x, y, z: Target suction cup position (not end effector position)
+        f: Feedrate
+        maintain_extension_direction: If True, automatically maintain extension direction
+        extension_angle: Target camera direction in cartesian coordinates (default: -Y = -90°)
+                        Suction cup will automatically point in opposite direction
+    """
+    global CUR_X, CUR_Y, CUR_Z, CUR_J1, CUR_J2, CUR_J4
+    
+    # Calculate required end effector position to place suction cup at target
+    if maintain_extension_direction:
+        # Calculate the angle from current position to target suction cup position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        target_suction_angle = math.degrees(math.atan2(dy, dx))
+        
+        # Calculate end effector position that would place suction cup at target
+        # Suction cup is 180° opposite to camera direction
+        suction_angle_rad = math.radians(target_suction_angle)
+        end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
+        end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
+        
+        # Calculate joint angles for end effector position
+        j1, j2 = cartesian_to_angles(end_x, end_y)
+        
+        # Calculate required J4 for maintaining extension direction
+        i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        
+        # Check limits including extension arm collision
+        check_joint_limits(j1, j2, z, i)
+        
+        # Move with coordinated J4
+        send_commands([f"G1 X{end_x:.3f} Y{end_y:.3f} Z{z:.3f} I{i:.3f} F{f}"])
+        
+        # Update current position
+        CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
+        CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        
+    else:
+        # For non-maintained direction, we need to calculate the optimal end effector position
+        dx = x - CUR_X
+        dy = y - CUR_Y
+        distance = math.sqrt(dx**2 + dy**2)
+        
+        if distance < EXTENSION_SUCTION_LENGTH:
+            # Target is too close, move end effector directly
+            linear(x, y, z, f, maintain_extension_direction=False)
+        else:
+            # Calculate end effector position that would place suction cup at target
+            suction_angle_rad = math.atan2(dy, dx)
+            end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
+            end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
+            linear(end_x, end_y, z, f, maintain_extension_direction=False)
+
 # 延遲
 def delay(s):
     send_commands([f"G4 T{s}"])
@@ -646,6 +878,8 @@ def terminal_control():
     print("Commands:")
     print("  coord <x> <y> <z>     - Move to cartesian coordinates")
     print("  angle <j1> <j2> <j3> <j4> - Move to joint angles")
+    print("  camera_pos <x> <y> <z> - Move camera to position")
+    print("  suction_pos <x> <y> <z> - Move suction cup to position")
     print("  home                  - Move to home position")
     print("  cal                   - Run calibration")
     print("  status                - Show current position")
@@ -742,6 +976,50 @@ def terminal_control():
                     set_suction_cup_direction(angle)
                 except (ValueError, IndexError) as e:
                     print(f"Invalid suction angle: {e}")
+                    
+            elif command.startswith('camera_pos '):
+                try:
+                    parts = command.split()
+                    if len(parts) == 4:
+                        x = float(parts[1])
+                        y = float(parts[2])
+                        z = float(parts[3])
+                        print(f"Moving camera to position: X={x:.1f}, Y={y:.1f}, Z={z:.1f}")
+                        quick_camera(x, y, z, maintain_extension_direction=True, extension_angle=-90.0)
+                        # Update current position based on end effector
+                        camera_pos = get_camera_position()
+                        if abs(camera_pos[0] - x) < 1 and abs(camera_pos[1] - y) < 1:
+                            print("Camera successfully moved to target position")
+                        else:
+                            print("Warning: Camera may not have reached exact target position")
+                    else:
+                        print("Usage: camera_pos <x> <y> <z>")
+                except ValueError as e:
+                    print(f"Invalid camera position: {e}")
+                except Exception as e:
+                    print(f"Error: {e}")
+                    
+            elif command.startswith('suction_pos '):
+                try:
+                    parts = command.split()
+                    if len(parts) == 4:
+                        x = float(parts[1])
+                        y = float(parts[2])
+                        z = float(parts[3])
+                        print(f"Moving suction cup to position: X={x:.1f}, Y={y:.1f}, Z={z:.1f}")
+                        quick_suction(x, y, z, maintain_extension_direction=True, extension_angle=-90.0)
+                        # Update current position based on end effector
+                        suction_pos = get_suction_cup_position()
+                        if abs(suction_pos[0] - x) < 1 and abs(suction_pos[1] - y) < 1:
+                            print("Suction cup successfully moved to target position")
+                        else:
+                            print("Warning: Suction cup may not have reached exact target position")
+                    else:
+                        print("Usage: suction_pos <x> <y> <z>")
+                except ValueError as e:
+                    print(f"Invalid suction position: {e}")
+                except Exception as e:
+                    print(f"Error: {e}")
                     
             elif command == '':
                 continue
