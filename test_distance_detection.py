@@ -2,7 +2,7 @@
 # distance_detection.py
 
 import cv2
-from realsense_depth import DepthCamera
+from RealSense.realsense_depth import DepthCamera
 
 # Initialize camera
 dc = DepthCamera()
