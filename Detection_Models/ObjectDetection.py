@@ -8,7 +8,7 @@ from typing import List, Tuple, Dict
 from ultralytics import YOLO
 
 # Import SCARA functions
-from SCARA import (
+from Arm_Control.SCARA import (
     quick, coordinate_mode, cartesian_to_angles,
     check_joint_limits, ORIGIN_Z,
     EXTENSION_CAMERA_LENGTH
@@ -66,7 +66,7 @@ class SCARAObjectDetection:
             self.create_default_calibration()
     
     def create_default_calibration(self):
-        """Create default calibration parameters for D435i camera"""
+        """Create default calibration parameters for D435i camera (1280x720)"""
         # Default intrinsic parameters for Intel RealSense D435i at 1280x720
         # These are approximate values - real calibration is recommended
         self.camera_matrix = np.array([
@@ -469,4 +469,9 @@ def main():
         print(f"Error during detection: {e}")
 
 if __name__ == "__main__":
-    main()
+    # main()
+    detector = SCARAObjectDetection(
+        model_path="../yolo/my_model/my_model.pt",
+        confidence_threshold=0.5
+    )
+    print(detector.generate_scan_positions())
