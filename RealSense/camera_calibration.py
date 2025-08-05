@@ -598,8 +598,9 @@ def main():
         print("1. Intrinsic calibration only")
         print("2. Full calibration (intrinsic + extrinsic)")
         print("3. Load existing calibration")
+        print("4. Load intrinsics and redo extrinsic calibration")
         
-        choice = input("Enter choice (1-3): ").strip()
+        choice = input("Enter choice (1-4): ").strip()
         
         if choice == "1":
             # Intrinsic calibration only
@@ -618,6 +619,24 @@ def main():
                 print("Calibration loaded successfully")
             else:
                 print("Failed to load calibration")
+        
+        elif choice == "4":
+            # Load intrinsics and redo extrinsic calibration
+            if calibrator.load_calibration():
+                print("Existing calibration loaded successfully")
+                if calibrator.intrinsics is not None:
+                    print("Intrinsic parameters found, proceeding with extrinsic calibration...")
+                    if calibrator.calibrate_extrinsics():
+                        calibrator.save_calibration()
+                        print("Extrinsic calibration completed and saved!")
+                    else:
+                        print("Extrinsic calibration failed")
+                else:
+                    print("No intrinsic parameters found in the loaded calibration")
+                    print("Please run intrinsic calibration first (option 1 or 2)")
+            else:
+                print("Failed to load existing calibration")
+                print("Please run intrinsic calibration first (option 1 or 2)")
         
         else:
             print("Invalid choice")
