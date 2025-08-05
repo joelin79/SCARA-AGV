@@ -490,6 +490,65 @@ class SCARAObjectDetection:
         
         print(f"Results saved to {filename}")
     
+    def create_visualization(self, show_3d: bool = True, show_top_view: bool = True, 
+                           show_stats: bool = True, save_plots: bool = True) -> None:
+        """
+        Create 3D visualization of detected objects
+        
+        Args:
+            show_3d: Whether to show 3D plot
+            show_top_view: Whether to show 2D top view
+            show_stats: Whether to show statistics
+            save_plots: Whether to save plots to files
+        """
+        if not self.detected_objects:
+            print("No objects to visualize")
+            return
+        
+        try:
+            # Import visualizer
+            sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+            from visualization_3d import ObjectVisualizer3D
+            
+            # Create visualizer
+            visualizer = ObjectVisualizer3D()
+            
+            # Load objects from detector
+            if visualizer.load_objects_from_detector(self):
+                print("Creating visualizations...")
+                
+                # Create plots
+                if show_3d:
+                    print("Generating 3D plot...")
+                    visualizer.plot_3d_objects(
+                        show_workspace=True,
+                        show_camera_positions=True,
+                        show_confidence=True,
+                        show_labels=True
+                    )
+                    if save_plots:
+                        visualizer.save_visualization("3d_objects_plot.png")
+                
+                if show_top_view:
+                    print("Generating top view...")
+                    visualizer.plot_top_view(show_confidence=True)
+                    if save_plots:
+                        visualizer.save_visualization("top_view_plot.png")
+                
+                if show_stats:
+                    print("Generating statistics...")
+                    visualizer.plot_statistics()
+                    if save_plots:
+                        visualizer.save_visualization("statistics_plot.png")
+                
+                print("Visualizations completed!")
+                
+        except ImportError as e:
+            print(f"Visualization not available: {e}")
+            print("Install required packages: pip install matplotlib seaborn")
+        except Exception as e:
+            print(f"Error creating visualization: {e}")
+    
     def cleanup(self):
         """Clean up resources"""
         if self.camera:

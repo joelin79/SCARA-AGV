@@ -45,6 +45,14 @@ def test_object_detection():
         print("\n4. Saving results...")
         detector.save_results_to_file("test_detection_results.json")
         
+        print("\n5. Creating visualizations...")
+        detector.create_visualization(
+            show_3d=True,
+            show_top_view=True,
+            show_stats=True,
+            save_plots=True
+        )
+        
         # Save coordinates in multiple formats
         coords = detector.get_object_coordinates_list()
         if coords:
@@ -75,6 +83,9 @@ def test_object_detection():
         print("   - object_coordinates.txt (human readable)")
         print("   - object_coordinates.py (Python import)")
         print("   - detections_output/ (captured images)")
+        print("   - 3d_objects_plot.png (3D visualization)")
+        print("   - top_view_plot.png (2D top view)")
+        print("   - statistics_plot.png (statistics)")
         
     except KeyboardInterrupt:
         print("\n\nTest interrupted by user (Ctrl+C)")
