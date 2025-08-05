@@ -467,15 +467,11 @@ def quick_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_a
     
     # Calculate required end effector position to place camera at target
     if maintain_extension_direction:
-        # Calculate the angle from current position to target camera position
-        dx = x - CUR_X
-        dy = y - CUR_Y
-        target_camera_angle = math.degrees(math.atan2(dy, dx))
-        
         # Calculate end effector position that would place camera at target
-        camera_angle_rad = math.radians(target_camera_angle)
-        end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
-        end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
+        # when extension arm points in the specified direction
+        extension_angle_rad = math.radians(extension_angle)
+        end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
+        end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(extension_angle_rad)
         
         # Calculate joint angles for end effector position
         j1, j2 = cartesian_to_angles(end_x, end_y)
@@ -524,15 +520,11 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
     
     # Calculate required end effector position to place camera at target
     if maintain_extension_direction:
-        # Calculate the angle from current position to target camera position
-        dx = x - CUR_X
-        dy = y - CUR_Y
-        target_camera_angle = math.degrees(math.atan2(dy, dx))
-        
         # Calculate end effector position that would place camera at target
-        camera_angle_rad = math.radians(target_camera_angle)
-        end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
-        end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
+        # when extension arm points in the specified direction
+        extension_angle_rad = math.radians(extension_angle)
+        end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(extension_angle_rad)
+        end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(extension_angle_rad)
         
         # Calculate joint angles for end effector position
         j1, j2 = cartesian_to_angles(end_x, end_y)
@@ -582,14 +574,12 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
     
     # Calculate required end effector position to place suction cup at target
     if maintain_extension_direction:
-        # Calculate the angle from current position to target suction cup position
-        dx = x - CUR_X
-        dy = y - CUR_Y
-        target_suction_angle = math.degrees(math.atan2(dy, dx))
-        
         # Calculate end effector position that would place suction cup at target
         # Suction cup is 180° opposite to camera direction
-        suction_angle_rad = math.radians(target_suction_angle)
+        suction_angle = extension_angle + 180
+        if suction_angle > 180:
+            suction_angle -= 360
+        suction_angle_rad = math.radians(suction_angle)
         end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
         end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
         
@@ -640,14 +630,12 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
     
     # Calculate required end effector position to place suction cup at target
     if maintain_extension_direction:
-        # Calculate the angle from current position to target suction cup position
-        dx = x - CUR_X
-        dy = y - CUR_Y
-        target_suction_angle = math.degrees(math.atan2(dy, dx))
-        
         # Calculate end effector position that would place suction cup at target
         # Suction cup is 180° opposite to camera direction
-        suction_angle_rad = math.radians(target_suction_angle)
+        suction_angle = extension_angle + 180
+        if suction_angle > 180:
+            suction_angle -= 360
+        suction_angle_rad = math.radians(suction_angle)
         end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
         end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
         
