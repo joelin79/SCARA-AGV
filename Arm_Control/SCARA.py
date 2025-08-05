@@ -3,7 +3,7 @@ import time
 import pygame
 import math
 
-ser = serial.Serial(port='/dev/tty.usbserial-110', baudrate=115200, timeout=1)
+ser = serial.Serial(port='COM3', baudrate=115200, timeout=1)
 
 RIGHT_HANDED_MODE = True
 

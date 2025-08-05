@@ -334,11 +334,11 @@ class CameraCalibrator:
         # Define arm positions for calibration
         # These should be positions where the chessboard is visible
         arm_positions = [
-            (0, 0, 300),      # Center
-            (-100, 0, 300),   # Left
-            (100, 0, 300),    # Right
-            (0, -100, 300),   # Front
-            (0, 100, 300),    # Back
+            (250, -50, 200),      # Center
+            (250, 0, 200),   # Left
+            (250, -100, 200),    # Right
+            (300, -50, 200),   # Front
+            (200, -50, 200),    # Back
         ]
         
         arm_points = []  # Arm coordinates
@@ -569,7 +569,7 @@ def main():
     print("SCARA AGV Camera Calibration System")
     print("=" * 50)
     
-    calibrator = CameraCalibrator(chessboard_size=(11, 8), square_size=21.5, fast_mode=True)
+    calibrator = CameraCalibrator(chessboard_size=(5, 4), square_size=21.5, fast_mode=True)
     
     try:
         print("Choose calibration mode:")
