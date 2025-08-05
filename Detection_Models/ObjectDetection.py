@@ -17,10 +17,65 @@ from pathlib import Path
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+
+# Create a wrapper class for the real SCARA arm
+class SCARAWrapper:
+    """Wrapper class to make function-based SCARA arm compatible with class-based interface"""
+    
+    def __init__(self, scara_module):
+        self.scara_module = scara_module
+        self.is_real_arm = True
+        print("Real SCARA arm wrapper initialized")
+    
+    def quick_camera(self, x: float, y: float, z: float, 
+                    maintain_extension_direction: bool = True, 
+                    extension_angle: float = -90.0) -> bool:
+        """Wrapper for quick_camera function"""
+        try:
+            # Use the real SCARA quick_camera function
+            self.scara_module.quick_camera(x, y, z, 
+                                         maintain_extension_direction=maintain_extension_direction,
+                                         extension_angle=extension_angle)
+            return True
+        except Exception as e:
+            print(f"SCARA movement error: {e}")
+            return False
+
+# Try to import the real SCARA functions
 try:
-    from Arm_Control.SCARA import SCARA
+    import Arm_Control.SCARA as scara_functions
+    # Test if we can actually connect to the hardware
+    try:
+        # Check if the serial connection exists and is working
+        if hasattr(scara_functions, 'ser'):
+            # Try to check if the serial port is accessible
+            if scara_functions.ser.is_open:
+                # Try a simple status check
+                RealSCARAAvailable = True
+                print("Real SCARA hardware detected and connected")
+            else:
+                print("Serial port exists but not connected")
+                RealSCARAAvailable = False
+        else:
+            print("No serial connection found in SCARA module")
+            RealSCARAAvailable = False
+    except Exception as e:
+        RealSCARAAvailable = False
+        print(f"Real SCARA hardware not available: {e}")
+        print("Using simulator instead")
+except ImportError as e:
+    RealSCARAAvailable = False
+    scara_functions = None
+    print(f"SCARA module import failed: {e}")
+    print("Using simulator instead")
+
+# Import simulator as fallback
+try:
+    from Arm_Control.SCARA_Simulator import SCARA as SCARASimulator
 except ImportError:
-    from Arm_Control.SCARA_Simulator import SCARA
+    print("Warning: SCARA Simulator not available")
+    SCARASimulator = None
+
 from RealSense.realsense_depth import DepthCamera
 
 @dataclass
@@ -130,10 +185,16 @@ class SCARAObjectDetection:
         """Initialize SCARA arm connection"""
         try:
             print("Initializing SCARA arm...")
-            # Note: SCARA class is imported but connection depends on hardware
-            # For now, we'll create a mock arm for testing
-            self.arm = SCARA()
-            print("Arm initialized successfully")
+            # Use the wrapper to handle both real and simulator
+            if RealSCARAAvailable:
+                self.arm = SCARAWrapper(scara_functions)
+                print("Real SCARA arm initialized successfully")
+            elif SCARASimulator:
+                self.arm = SCARASimulator()
+                print("SCARA Simulator initialized successfully")
+            else:
+                print("Warning: No SCARA arm available. Running in simulation mode.")
+                self.arm = None
         except Exception as e:
             print(f"Warning: Arm initialization failed: {e}")
             print("Running in simulation mode")
@@ -210,18 +271,27 @@ class SCARAObjectDetection:
         """
         if self.arm:
             try:
+                print(f"Moving arm to position ({x:.1f}, {y:.1f}, {self.camera_height:.1f})")
                 # Move arm to position
-                self.arm.quick_camera(x, y, self.camera_height, extension_angle=camera_angle)
-                time.sleep(1.0)  # Wait for movement to complete
+                success = self.arm.quick_camera(x, y, self.camera_height, extension_angle=camera_angle)
+                if success:
+                    print("Arm movement completed successfully")
+                    time.sleep(1.0)  # Wait for movement to complete and stabilize
+                else:
+                    print("Arm movement reported failure")
             except Exception as e:
                 print(f"Warning: Arm movement failed: {e}")
+        else:
+            print(f"Warning: No arm available - capturing image at current position for ({x:.1f}, {y:.1f})")
         
         # Capture image
+        print("Capturing image...")
         success, depth_image, color_image = self.camera.get_frame()
         if not success:
             print(f"Failed to capture image at position ({x}, {y})")
             return False, None, None
         
+        print(f"Image captured successfully: {color_image.shape}")
         return True, color_image, depth_image
     
     def detect_objects_in_image(self, color_image: np.ndarray, depth_image: np.ndarray,
