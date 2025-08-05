@@ -341,6 +341,8 @@ class CameraCalibrator:
         print(f"Starting extrinsic calibration with {num_positions} arm positions...")
         print("This will move the arm to different positions to capture the chessboard")
         
+        # Initialize camera for extrinsic calibration
+        self._initialize_camera()
         self._initialize_arm()
         
         # Define arm positions for calibration
