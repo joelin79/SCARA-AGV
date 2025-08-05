@@ -18,8 +18,10 @@ from dataclasses import dataclass
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
 try:
-    from Arm_Control.SCARA import SCARA
+    import Arm_Control.SCARA as scara_control
+    from Arm_Control.SCARA_Simulator import SCARA
 except ImportError:
+    scara_control = None
     from Arm_Control.SCARA_Simulator import SCARA
 
 @dataclass
@@ -67,6 +69,7 @@ class CameraCalibrator:
         # Initialize components
         self.camera = None
         self.arm = None
+        self.is_real_arm = False
         
         # Calibration data
         self.object_points = []  # 3D points in world coordinates
@@ -111,12 +114,21 @@ class CameraCalibrator:
     def _initialize_arm(self):
         """Initialize SCARA arm"""
         try:
-            self.arm = SCARA()
-            print("SCARA arm initialized successfully")
+            if scara_control is not None:
+                # Try to use real SCARA (function-based)
+                print("Using real SCARA arm control")
+                self.arm = None  # We'll call functions directly
+                self.is_real_arm = True
+            else:
+                # Fall back to simulator
+                self.arm = SCARA()
+                self.is_real_arm = False
+                print("SCARA simulator initialized successfully")
         except Exception as e:
             print(f"Warning: Arm initialization failed: {e}")
             print("Running in simulation mode")
-            self.arm = None
+            self.arm = SCARA()
+            self.is_real_arm = False
     
     def get_frame(self) -> Tuple[bool, np.ndarray, np.ndarray]:
         """Get color and depth frames from camera"""
@@ -333,6 +345,7 @@ class CameraCalibrator:
         
         # Define arm positions for calibration
         # These should be positions where the chessboard is visible
+        # Positions are for camera placement (not end effector)
         arm_positions = [
             (250, -50, 200),      # Center
             (250, 0, 200),   # Left
@@ -348,9 +361,18 @@ class CameraCalibrator:
             print(f"Position {i+1}/{num_positions}: ({x}, {y}, {z})")
             
             # Move arm to position
-            if self.arm:
+            if self.is_real_arm and scara_control:
+                # Use real SCARA functions
+                print(f"Moving camera to position: ({x}, {y}, {z})")
+                scara_control.quick_camera(x, y, z)
+                time.sleep(3.0)  # Wait for movement
+            elif self.arm:
+                # Use simulator
                 self.arm.quick_camera(x, y, z)
                 time.sleep(2.0)  # Wait for movement
+            else:
+                print(f"Simulating movement to position: ({x}, {y}, {z})")
+                time.sleep(1.0)  # Simulate movement time
             
             # Capture image
             success, depth_image, color_image = self.get_frame()
