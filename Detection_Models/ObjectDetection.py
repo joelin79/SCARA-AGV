@@ -59,7 +59,14 @@ class SCARAObjectDetection:
             grid_size: Number of positions in grid (e.g., 3 = 3x3 grid)
             overlap_percentage: Percentage of overlap between images (0.0-1.0)
         """
-        self.model_path = model_path
+        # Make model path relative to project root, not current directory
+        if not os.path.isabs(model_path):
+            # Get the project root directory (parent of Detection_Models)
+            current_dir = Path(__file__).parent
+            project_root = current_dir.parent
+            self.model_path = str(project_root / model_path)
+        else:
+            self.model_path = model_path
         self.confidence_threshold = confidence_threshold
         self.camera_height = camera_height
         self.grid_size = grid_size
