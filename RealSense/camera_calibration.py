@@ -374,14 +374,69 @@ class CameraCalibrator:
                 print(f"Simulating movement to position: ({x}, {y}, {z})")
                 time.sleep(1.0)  # Simulate movement time
             
-            # Capture image
-            success, depth_image, color_image = self.get_frame()
-            if not success:
-                print(f"Failed to capture at position {i+1}")
+            # Show live camera view for positioning
+            print(f"Position the chessboard in view and press 'c' to capture, 's' to skip this position")
+            chessboard_found = False
+            
+            while not chessboard_found:
+                # Capture image
+                success, depth_image, color_image = self.get_frame()
+                if not success:
+                    print(f"Failed to get camera frame at position {i+1}")
+                    time.sleep(0.1)
+                    continue
+                
+                # Create display image
+                display_scale = 0.8
+                display_height = int(color_image.shape[0] * display_scale)
+                display_width = int(color_image.shape[1] * display_scale)
+                display_image = cv2.resize(color_image, (display_width, display_height))
+                
+                # Try to find chessboard
+                ret, corners = self.find_chessboard_corners(color_image)
+                
+                # Add status text
+                font_scale = 0.6
+                cv2.putText(display_image, f"Extrinsic Calibration - Position {i+1}/{num_positions}", 
+                           (10, 25), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 2)
+                cv2.putText(display_image, f"Camera at: ({x:.0f}, {y:.0f}, {z:.0f})", 
+                           (10, 50), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 255, 255), 2)
+                
+                if ret:
+                    # Draw chessboard corners
+                    display_corners = corners * display_scale
+                    cv2.drawChessboardCorners(display_image, self.chessboard_size, display_corners, ret)
+                    cv2.putText(display_image, "Chessboard detected! Press 'c' to capture", 
+                               (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 255, 0), 2)
+                else:
+                    cv2.putText(display_image, "Position chessboard in view", 
+                               (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 0, 255), 2)
+                
+                cv2.putText(display_image, "Press 'c' to capture, 's' to skip, 'q' to quit", 
+                           (10, display_height - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 255, 255), 2)
+                
+                cv2.imshow('Extrinsic Calibration - Camera View', display_image)
+                key = cv2.waitKey(30) & 0xFF
+                
+                if key == ord('q'):
+                    cv2.destroyAllWindows()
+                    return False
+                elif key == ord('s'):
+                    print(f"Skipping position {i+1}")
+                    chessboard_found = True  # Exit loop but don't use this position
+                    continue
+                elif key == ord('c'):
+                    if ret:
+                        chessboard_found = True
+                        break
+                    else:
+                        print("No chessboard detected. Position the chessboard and try again.")
+            
+            # If we skipped this position, continue to next
+            if key == ord('s'):
                 continue
             
-            # Find chessboard
-            ret, corners = self.find_chessboard_corners(color_image)
+            # Process the captured chessboard
             if not ret:
                 print(f"No chessboard found at position {i+1}")
                 continue
@@ -453,6 +508,9 @@ class CameraCalibrator:
         
         mean_error = np.mean(errors)
         print(f"Mean transformation error: {mean_error:.2f} mm")
+        
+        # Close the camera view window
+        cv2.destroyAllWindows()
         
         return True
     
