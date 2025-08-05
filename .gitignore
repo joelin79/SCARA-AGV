@@ -1,1 +1,3 @@
 *.ts
+.idea/SCARA-AGV.iml
+.idea/misc.xml
