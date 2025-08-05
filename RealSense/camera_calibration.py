@@ -569,7 +569,7 @@ def main():
     print("SCARA AGV Camera Calibration System")
     print("=" * 50)
     
-    calibrator = CameraCalibrator()
+    calibrator = CameraCalibrator(chessboard_size=(11, 8), square_size=21.5, fast_mode=True)
     
     try:
         print("Choose calibration mode:")
