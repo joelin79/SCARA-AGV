@@ -45,16 +45,18 @@ class CameraCalibrator:
     """
     
     def __init__(self, chessboard_size: Tuple[int, int] = (9, 6), 
-                 square_size: float = 20.0):
+                 square_size: float = 20.0, fast_mode: bool = True):
         """
         Initialize camera calibrator
         
         Args:
             chessboard_size: Number of internal corners (width, height)
             square_size: Size of chessboard squares in mm
+            fast_mode: Use lower resolution and frame rate for better performance
         """
         self.chessboard_size = chessboard_size
         self.square_size = square_size
+        self.fast_mode = fast_mode
         
         # Calibration parameters
         self.intrinsics = None
@@ -80,8 +82,18 @@ class CameraCalibrator:
         try:
             self.camera = rs.pipeline()
             config = rs.config()
-            config.enable_stream(rs.stream.depth, 1280, 720, rs.format.z16, 30)
-            config.enable_stream(rs.stream.color, 1280, 720, rs.format.bgr8, 30)
+            
+            if self.fast_mode:
+                # Fast mode: lower resolution and frame rate
+                width, height, fps = 640, 480, 15
+                print("Using fast mode for better performance")
+            else:
+                # High quality mode
+                width, height, fps = 1280, 720, 30
+                print("Using high quality mode")
+            
+            config.enable_stream(rs.stream.depth, width, height, rs.format.z16, fps)
+            config.enable_stream(rs.stream.color, width, height, rs.format.bgr8, fps)
             
             # Start streaming
             self.camera.start(config)
@@ -90,7 +102,7 @@ class CameraCalibrator:
             align_to = rs.stream.color
             self.align = rs.align(align_to)
             
-            print("RealSense camera initialized successfully")
+            print(f"RealSense camera initialized successfully ({width}x{height} @ {fps}fps)")
             
         except Exception as e:
             print(f"Error initializing camera: {e}")
@@ -140,14 +152,19 @@ class CameraCalibrator:
         """
         gray = cv2.cvtColor(image, cv2.COLOR_BGR2GRAY)
         
-        # Find chessboard corners
-        ret, corners = cv2.findChessboardCorners(
-            gray, self.chessboard_size, 
-            cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK + cv2.CALIB_CB_NORMALIZE_IMAGE
-        )
+        # Optimize chessboard detection for speed
+        flags = cv2.CALIB_CB_ADAPTIVE_THRESH + cv2.CALIB_CB_FAST_CHECK
+        if self.fast_mode:
+            # Skip normalization in fast mode for better performance
+            flags += cv2.CALIB_CB_FILTER_QUADS
+        else:
+            flags += cv2.CALIB_CB_NORMALIZE_IMAGE
         
-        if ret:
-            # Refine corner positions
+        # Find chessboard corners
+        ret, corners = cv2.findChessboardCorners(gray, self.chessboard_size, flags)
+        
+        if ret and not self.fast_mode:
+            # Only refine corners in high quality mode (slow operation)
             criteria = (cv2.TERM_CRITERIA_EPS + cv2.TERM_CRITERIA_MAX_ITER, 30, 0.001)
             corners = cv2.cornerSubPix(gray, corners, (11, 11), (-1, -1), criteria)
             
@@ -175,29 +192,52 @@ class CameraCalibrator:
         objp *= self.square_size  # Scale by square size
         
         captured_count = 0
+        last_frame_time = time.time()
+        frame_skip = 0
         
         while captured_count < num_images:
+            # Limit frame rate to improve responsiveness
+            current_time = time.time()
+            if current_time - last_frame_time < 0.1:  # 10 FPS max
+                frame_skip += 1
+                if frame_skip < 3:  # Skip frames but still check for key presses
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        break
+                    continue
+            
+            frame_skip = 0
+            last_frame_time = current_time
+            
             success, depth_image, color_image = self.get_frame()
             
             if not success:
                 print("Failed to get camera frame")
                 continue
             
-            # Display image
-            display_image = color_image.copy()
-            cv2.putText(display_image, f"Captured: {captured_count}/{num_images}", 
-                       (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-            cv2.putText(display_image, "Press 'c' to capture, 'q' to quit", 
-                       (10, 70), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (255, 255, 255), 2)
+            # Resize for display to improve performance
+            display_scale = 0.8
+            display_height = int(color_image.shape[0] * display_scale)
+            display_width = int(color_image.shape[1] * display_scale)
             
-            # Try to find chessboard
+            display_image = cv2.resize(color_image, (display_width, display_height))
+            
+            # Add text overlays (scaled for display)
+            font_scale = 0.6
+            cv2.putText(display_image, f"Captured: {captured_count}/{num_images}", 
+                       (10, 25), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
+            cv2.putText(display_image, "Press 'c' to capture, 'q' to quit", 
+                       (10, 50), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 255, 255), 2)
+            
+            # Try to find chessboard (use original resolution)
             ret, corners = self.find_chessboard_corners(color_image)
             
             if ret:
-                # Draw corners
-                cv2.drawChessboardCorners(display_image, self.chessboard_size, corners, ret)
+                # Scale corners for display
+                display_corners = corners * display_scale
+                cv2.drawChessboardCorners(display_image, self.chessboard_size, display_corners, ret)
                 cv2.putText(display_image, "Chessboard detected!", 
-                           (10, 110), cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+                           (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 255, 0), 2)
             
             cv2.imshow('Camera Calibration', display_image)
             key = cv2.waitKey(1) & 0xFF
