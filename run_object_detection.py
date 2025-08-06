@@ -110,7 +110,6 @@ def main():
         return 1
     finally:
         detector.cleanup()
-    
     return 0
 
 if __name__ == "__main__":

@@ -17,6 +17,8 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+from Arm_Control.SCARA import ORIGIN_Z
+
 # Add project directories to path
 current_dir = Path(__file__).parent
 project_root = current_dir.parent
@@ -235,7 +237,7 @@ class ObjectDetectionSystem:
             
             # Movement completion is now handled in _move_camera_to_position
             # Additional settling time for camera stabilization
-            time.sleep(2)
+            time.sleep(11)
             
             # Capture image
             image_data = self._capture_image()
@@ -323,7 +325,7 @@ class ObjectDetectionSystem:
                     return True
                 
                 # Wait a bit before checking again
-                time.sleep(0.1)
+                time.sleep(0.2)
                 
             except Exception as e:
                 print(f"  ⚠ Warning: Could not check position: {e}")
@@ -721,6 +723,7 @@ def main():
     except Exception as e:
         print(f"Error during detection: {e}")
     finally:
+        scara_control.quick(scara_control.ORIGIN_X, scara_control.ORIGIN_Y, scara_control.ORIGIN_Z)
         detector.cleanup()
 
 

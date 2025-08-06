@@ -1,0 +1,14 @@
+{
+  "scan_metadata": {
+    "timestamp": "2025-08-06 14:56:05",
+    "total_objects": 4,
+    "scan_positions": 19,
+    "model_path": "C:\\Users\\User\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
+  },
+  "detected_objects": [
+    {
+      "object_id": 0,
+      "class_name": "block",
+      "confidence": 0.9419270157814026,
+      "bbox": [
+        
