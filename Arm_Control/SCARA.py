@@ -684,16 +684,14 @@ def section_trigger(v: bool):
     else: send_commands(["G131 V0"])
 
 # 回原點      NOTE: 會重設原點設置 (相當於執行 M368)
-def home(x=ORIGIN_X, y=ORIGIN_Y, z=ORIGIN_Z, i=ORIGIN_J4):
+def home(x=None, y=None, z=None):
     cmd = "G28"
     if x is not None: cmd += f" X{x:.3f}"
     if y is not None: cmd += f" Y{y:.3f}"
     if z is not None: cmd += f" Z{z:.3f}"
-    if i is not None: cmd += f" I{i:.3f}"
     send_commands([cmd])
-    quick(x,y,z)
-    set_origin(x,y,z,i)
-    
+
+
 def calibrate():
     global CUR_J4
     
