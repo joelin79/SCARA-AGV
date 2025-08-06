@@ -690,8 +690,6 @@ def home(x=None, y=None, z=None):
     if y is not None: cmd += f" Y{y:.3f}"
     if z is not None: cmd += f" Z{z:.3f}"
     send_commands([cmd])
-    quick(ORIGIN_X, ORIGIN_Y, ORIGIN_Z, maintain_extension_direction=False)  # Move without extension control first
-    set_origin(ORIGIN_X, ORIGIN_Y, ORIGIN_Z)
 
 
 def calibrate():
@@ -713,6 +711,8 @@ def calibrate():
     set_limit_detection(True)
 
     home(ORIGIN_X, ORIGIN_Y, ORIGIN_Z)
+    quick(ORIGIN_X, ORIGIN_Y, ORIGIN_Z, maintain_extension_direction=False)  # Move without extension control first
+    set_origin(ORIGIN_X, ORIGIN_Y, ORIGIN_Z)
     set_limit_detection(True)
     
     print("Extension arm calibration...")
