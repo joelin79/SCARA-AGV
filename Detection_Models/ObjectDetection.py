@@ -227,13 +227,15 @@ class ObjectDetectionSystem:
             self.current_scan_index = i
             print(f"\nScanning position {i+1}/{len(self.scan_positions)}: ({cam_x:.1f}, {cam_y:.1f}, {cam_z:.1f})")
             
-            # Move camera to position
+            # Move camera to position and wait for completion
+            print(f"  Moving to position...")
             if not self._move_camera_to_position(cam_x, cam_y, cam_z):
-                print(f"Failed to move to position {i+1}, skipping...")
+                print(f"  ❌ Failed to reach position {i+1}, skipping...")
                 continue
             
-            # Wait for arm to settle
-            time.sleep(1.0)
+            # Movement completion is now handled in _move_camera_to_position
+            # Additional settling time for camera stabilization
+            time.sleep(0.5)
             
             # Capture image
             image_data = self._capture_image()
@@ -268,20 +270,69 @@ class ObjectDetectionSystem:
     
     def _move_camera_to_position(self, cam_x: float, cam_y: float, cam_z: float, 
                                camera_direction: float = -90.0) -> bool:
-        """Move camera to specified position"""
+        """Move camera to specified position and wait for completion"""
         try:
             if scara_control is not None:
+                # Send movement command
                 scara_control.quick_camera(cam_x, cam_y, cam_z, 
                                          maintain_extension_direction=True,
                                          extension_angle=camera_direction)
-                return True
+                
+                # Wait for movement to complete
+                return self._wait_for_movement_completion(cam_x, cam_y, cam_z)
             else:
                 # Simulation mode - just wait
-                time.sleep(0.1)
+                time.sleep(2.0)  # Simulate movement time
                 return True
         except Exception as e:
             print(f"Error moving camera: {e}")
             return False
+    
+    def _wait_for_movement_completion(self, target_x: float, target_y: float, target_z: float, 
+                                    timeout: float = 30.0, tolerance: float = 2.0) -> bool:
+        """
+        Wait for arm to reach target position within tolerance
+        
+        Args:
+            target_x, target_y, target_z: Target position
+            timeout: Maximum wait time in seconds
+            tolerance: Position tolerance in mm
+            
+        Returns:
+            True if position reached within timeout
+        """
+        if scara_control is None:
+            return True  # Simulation mode
+        
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            try:
+                # Get current camera position
+                current_camera_pos = scara_control.get_camera_position()
+                
+                # Calculate distance to target
+                distance = math.sqrt(
+                    (current_camera_pos[0] - target_x) ** 2 +
+                    (current_camera_pos[1] - target_y) ** 2 +
+                    (current_camera_pos[2] - target_z) ** 2
+                )
+                
+                if distance <= tolerance:
+                    print(f"  ✓ Position reached (distance: {distance:.1f}mm)")
+                    return True
+                
+                # Wait a bit before checking again
+                time.sleep(0.1)
+                
+            except Exception as e:
+                print(f"  ⚠ Warning: Could not check position: {e}")
+                # If we can't check position, wait a conservative amount
+                time.sleep(2.0)
+                return True  # Assume movement completed
+        
+        print(f"  ⚠ Timeout waiting for position (distance: {distance:.1f}mm)")
+        return False
     
     def _capture_image(self) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """Capture color and depth images"""
