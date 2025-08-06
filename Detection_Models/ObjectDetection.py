@@ -83,6 +83,9 @@ class ObjectDetectionSystem:
         self.scan_positions: List[Tuple[float, float, float]] = []
         self.current_scan_index = 0
         
+        # Generate timestamp for file naming (MMDDHHmm format)
+        self.timestamp = time.strftime("%m%d%H%M")
+        
         # Create output directories
         self.output_dir = Path("detection_output")
         self.output_dir.mkdir(exist_ok=True)
@@ -247,15 +250,22 @@ class ObjectDetectionSystem:
             
             color_image, depth_image = image_data
             
-            # Save image if requested
-            if self.save_images:
-                img_filename = self.images_dir / f"scan_{i+1:03d}.jpg"
-                cv2.imwrite(str(img_filename), color_image)
-            
-            # Run YOLO detection
+            # Run YOLO detection first
             detections = self._detect_objects(color_image, depth_image, 
                                             (cam_x, cam_y, cam_z), 
                                             confidence_threshold)
+            
+            # Save annotated detection image if requested
+            if self.save_images:
+                annotated_image = self._create_annotated_detection_image(
+                    color_image, detections, (cam_x, cam_y, cam_z), i+1
+                )
+                img_filename = self.images_dir / f"detection_{self.timestamp}_{i+1:03d}.jpg"
+                cv2.imwrite(str(img_filename), annotated_image)
+                
+                # Also save raw image for reference
+                raw_img_filename = self.images_dir / f"raw_{self.timestamp}_{i+1:03d}.jpg"
+                cv2.imwrite(str(raw_img_filename), color_image)
             
             print(f"Found {len(detections)} objects at position {i+1}")
             total_detections += len(detections)
@@ -409,10 +419,103 @@ class ObjectDetectionSystem:
                             print(f"  Object {object_id}: {class_name} ({confidence:.2f}) at {arm_coords}")
             
             return detections
-            
         except Exception as e:
             print(f"Error in object detection: {e}")
             return []
+    
+    def _create_annotated_detection_image(self, color_image: np.ndarray, 
+                                        detections: List[DetectedObject],
+                                        camera_position: Tuple[float, float, float],
+                                        scan_position: int) -> np.ndarray:
+        """
+        Create annotated detection image similar to yolo_detection.py
+        
+        Args:
+            color_image: Original color image
+            detections: List of detected objects
+            camera_position: Current camera position (x, y, z)
+            scan_position: Current scan position number
+            
+        Returns:
+            Annotated image with bounding boxes, labels, and camera position info
+        """
+        # Create a copy of the image to annotate
+        annotated_image = color_image.copy()
+        
+        # Determine dynamic label size based on resolution
+        font_scale = 0.5
+        font_thickness = 1
+        if annotated_image.shape[1] >= 1600 or annotated_image.shape[0] >= 1200:
+            font_scale = 1.2
+            font_thickness = 2
+        elif annotated_image.shape[1] >= 1200:
+            font_scale = 0.9
+            font_thickness = 2
+        
+        # Set bounding box colors (using the Tableau 10 color scheme)
+        bbox_colors = [(164, 120, 87), (68, 148, 228), (93, 97, 209), (178, 182, 133), (88, 159, 106),
+                      (96, 202, 231), (159, 124, 168), (169, 162, 241), (98, 118, 150), (172, 176, 184)]
+        
+        # Add camera position info in top left
+        camera_info = f"Camera Pos {scan_position}: ({camera_position[0]:.1f}, {camera_position[1]:.1f}, {camera_position[2]:.1f})"
+        cv2.putText(annotated_image, camera_info, (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale if font_scale > 0.7 else 0.7, (0, 255, 255), 
+                   font_thickness if font_thickness > 1 else 2)
+        
+        # Add timestamp
+        timestamp = time.strftime("%Y-%m-%d %H:%M:%S")
+        cv2.putText(annotated_image, timestamp, (10, 60), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale if font_scale > 0.7 else 0.7, (0, 255, 255), 
+                   font_thickness if font_thickness > 1 else 2)
+        
+        # Process each detection
+        for i, obj in enumerate(detections):
+            x1, y1, x2, y2 = obj.bbox
+            center_x, center_y = obj.center_pixel
+            class_name = obj.class_name
+            confidence = obj.confidence
+            depth_mm = obj.depth_mm
+            arm_x, arm_y, arm_z = obj.arm_coords
+            
+            # Get color for this class
+            class_idx = list(self.yolo_model.names.values()).index(class_name) if class_name in self.yolo_model.names.values() else i
+            color = bbox_colors[class_idx % len(bbox_colors)]
+            
+            # Draw bounding box
+            cv2.rectangle(annotated_image, (x1, y1), (x2, y2), color, 2)
+            
+            # Draw class label with confidence
+            label = f'{class_name}: {int(confidence * 100)}%'
+            labelSize, baseLine = cv2.getTextSize(label, cv2.FONT_HERSHEY_SIMPLEX, font_scale, font_thickness)
+            label_ymin = max(y1, labelSize[1] + 10)
+            cv2.rectangle(annotated_image, (x1, label_ymin - labelSize[1] - 10),
+                         (x1 + labelSize[0], label_ymin + baseLine - 10), color, cv2.FILLED)
+            cv2.putText(annotated_image, label, (x1, label_ymin - 7), cv2.FONT_HERSHEY_SIMPLEX, 
+                       font_scale, (0, 0, 0), font_thickness)
+            
+            # Draw center point (pink dot)
+            cv2.circle(annotated_image, (center_x, center_y), 4, (255, 0, 255), -1)
+            
+            # Create detailed center label with both pixel coordinates and arm coordinates
+            pixel_label = f'Pix:({center_x},{center_y}) D:{depth_mm:.0f}mm'
+            arm_label = f'Arm:({arm_x:.1f},{arm_y:.1f},{arm_z:.1f})'
+            
+            # Draw pixel coordinates label
+            cv2.putText(annotated_image, pixel_label, (center_x + 5, center_y - 5), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 0, 255), font_thickness)
+            
+            # Draw arm coordinates label (below pixel coordinates)
+            cv2.putText(annotated_image, arm_label, (center_x + 5, center_y + 15), 
+                       cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 0, 255), font_thickness)
+        
+        # Add total object count
+        object_count = len(detections)
+        count_text = f'Objects detected: {object_count}'
+        cv2.putText(annotated_image, count_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 
+                   font_scale if font_scale > 0.7 else 0.7, (0, 255, 255), 
+                   font_thickness if font_thickness > 1 else 2)
+        
+        return annotated_image
     
     def _get_depth_at_point(self, depth_image: np.ndarray, x: int, y: int, 
                            window_size: int = 5) -> float:
@@ -547,6 +650,21 @@ class ObjectDetectionSystem:
         for i, obj in enumerate(self.detected_objects):
             obj.object_id = i
     
+    def _convert_numpy(self, obj):
+        import numpy as np
+        if isinstance(obj, dict):
+            return {k: self._convert_numpy(v) for k, v in obj.items()}
+        elif isinstance(obj, list):
+            return [self._convert_numpy(i) for i in obj]
+        elif isinstance(obj, np.integer):
+            return int(obj)
+        elif isinstance(obj, np.floating):
+            return float(obj)
+        elif isinstance(obj, np.ndarray):
+            return obj.tolist()
+        else:
+            return obj
+    
     def save_results(self, filename: str = "detected_objects.json") -> bool:
         """
         Save detection results to file
@@ -591,11 +709,9 @@ class ObjectDetectionSystem:
             
             output_file = self.output_dir / filename
             with open(output_file, 'w') as f:
-                json.dump(results, f, indent=2)
-            
-            print(f"Results saved to {output_file}")
+                import json
+                json.dump(self._convert_numpy(results), f, indent=2)
             return True
-            
         except Exception as e:
             print(f"Error saving results: {e}")
             return False

@@ -109,7 +109,7 @@ class ObjectVisualizer3D:
                        show_labels: bool = True,
                        workspace_size: Tuple[float, float, float] = (400, 400, 300)) -> None:
         """
-        Create 3D plot of detected objects
+        Create 3D plot of detected objects with xy-plane projection
         
         Args:
             show_workspace: Whether to show workspace boundaries
@@ -136,7 +136,7 @@ class ObjectVisualizer3D:
         classes = [obj['class_name'] for obj in self.objects]
         confidences = [obj['confidence'] for obj in self.objects]
         
-        # Plot objects
+        # Plot xy-plane projection (shadow) at z=0
         for i, obj in enumerate(self.objects):
             x, y, z = obj['arm_coordinates']
             class_name = obj['class_name']
@@ -151,7 +151,34 @@ class ObjectVisualizer3D:
             else:
                 size = 100
             
-            # Plot point
+            # Plot shadow point on xy-plane (z=0)
+            ax.scatter(x, y, 0, 
+                      c=[color], 
+                      s=size * 0.3,  # Smaller shadow points
+                      alpha=0.3, 
+                      edgecolors='none',
+                      marker='o')
+            
+            # Draw vertical line from shadow to actual point
+            ax.plot([x, x], [y, y], [0, z], 
+                   color=color, alpha=0.2, linewidth=1)
+        
+        # Plot actual 3D objects
+        for i, obj in enumerate(self.objects):
+            x, y, z = obj['arm_coordinates']
+            class_name = obj['class_name']
+            confidence = obj['confidence']
+            
+            # Color based on class
+            color = self.class_colors[class_name]
+            
+            # Size based on confidence
+            if show_confidence:
+                size = 50 + confidence * 200  # Scale confidence to size
+            else:
+                size = 100
+            
+            # Plot actual 3D point
             ax.scatter(x, y, z, 
                       c=[color], 
                       s=size, 
@@ -159,9 +186,9 @@ class ObjectVisualizer3D:
                       edgecolors='black', 
                       linewidth=1)
             
-            # Add label
+            # Add label with ID and Z coordinate
             if show_labels:
-                ax.text(x, y, z, f"{class_name}\n{confidence:.2f}", 
+                ax.text(x, y, z, f"ID:{i}\nZ:{z:.1f}", 
                        fontsize=8, ha='center', va='bottom')
         
         # Show workspace boundaries
@@ -176,7 +203,7 @@ class ObjectVisualizer3D:
         ax.set_xlabel('X (mm)')
         ax.set_ylabel('Y (mm)')
         ax.set_zlabel('Z (mm)')
-        ax.set_title('3D Object Detection Results')
+        ax.set_title('3D Object Detection Results with XY-Plane Projection')
         
         # Add legend
         self._add_legend(ax)
@@ -284,8 +311,9 @@ class ObjectVisualizer3D:
             ax.scatter(x, y, c=[color], s=size, alpha=0.7, 
                       edgecolors='black', linewidth=1)
             
-            # Add label
-            ax.annotate(f"{class_name}\n{confidence:.2f}", 
+            # Add label with ID and Z coordinate
+            z = obj['arm_coordinates'][2]
+            ax.annotate(f"ID:{i}\nZ:{z:.1f}", 
                        (x, y), xytext=(5, 5), textcoords='offset points',
                        fontsize=8, ha='left', va='bottom')
         
@@ -387,13 +415,49 @@ class ObjectVisualizer3D:
             # Create 3D scatter plot
             fig = go.Figure()
             
-            # Add objects by class
+            # Add xy-plane projection (shadows) at z=0
             for class_name in set(classes):
                 mask = [c == class_name for c in classes]
                 class_x = [x for i, x in enumerate(x_coords) if mask[i]]
                 class_y = [y for i, y in enumerate(y_coords) if mask[i]]
                 class_z = [z for i, z in enumerate(z_coords) if mask[i]]
                 class_conf = [c for i, c in enumerate(confidences) if mask[i]]
+                class_indices = [i for i, c in enumerate(classes) if c == class_name]
+                
+                # Add shadow points on xy-plane
+                fig.add_trace(go.Scatter3d(
+                    x=class_x,
+                    y=class_y,
+                    z=[0] * len(class_x),  # All at z=0
+                    mode='markers',
+                    marker=dict(
+                        size=[(20 + conf * 50) * 0.3 for conf in class_conf],
+                        color=self.class_colors[class_name],
+                        opacity=0.3
+                    ),
+                    name=f"{class_name} (Shadow)",
+                    showlegend=False
+                ))
+                
+                # Add vertical lines from shadow to actual points
+                for i, (x, y, z) in enumerate(zip(class_x, class_y, class_z)):
+                    fig.add_trace(go.Scatter3d(
+                        x=[x, x],
+                        y=[y, y],
+                        z=[0, z],
+                        mode='lines',
+                        line=dict(color=self.class_colors[class_name], width=1, opacity=0.2),
+                        showlegend=False
+                    ))
+            
+            # Add actual 3D objects by class
+            for class_name in set(classes):
+                mask = [c == class_name for c in classes]
+                class_x = [x for i, x in enumerate(x_coords) if mask[i]]
+                class_y = [y for i, y in enumerate(y_coords) if mask[i]]
+                class_z = [z for i, z in enumerate(z_coords) if mask[i]]
+                class_conf = [c for i, c in enumerate(confidences) if mask[i]]
+                class_indices = [i for i, c in enumerate(classes) if c == class_name]
                 
                 fig.add_trace(go.Scatter3d(
                     x=class_x,
@@ -405,7 +469,7 @@ class ObjectVisualizer3D:
                         color=self.class_colors[class_name],
                         opacity=0.7
                     ),
-                    text=[f"{class_name}<br>Conf: {conf:.2f}" for conf in class_conf],
+                    text=[f"ID:{idx}<br>Z:{z:.1f}" for idx, z in zip(class_indices, class_z)],
                     name=class_name
                 ))
             
