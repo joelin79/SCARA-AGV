@@ -205,7 +205,7 @@ class ObjectDetectionSystem:
         except Exception:
             return False
     
-    def scan_workspace(self, confidence_threshold: float = 0.3) -> bool:
+    def scan_workspace(self, confidence_threshold: float = 0.7) -> bool:
         """
         Scan the entire workspace and detect objects
         
@@ -235,7 +235,7 @@ class ObjectDetectionSystem:
             
             # Movement completion is now handled in _move_camera_to_position
             # Additional settling time for camera stabilization
-            time.sleep(0.5)
+            time.sleep(2)
             
             # Capture image
             image_data = self._capture_image()
@@ -702,7 +702,7 @@ def main():
         )
         
         # Run the scan
-        if not detector.scan_workspace(confidence_threshold=0.3):
+        if not detector.scan_workspace(confidence_threshold=0.7):
             print("Scanning failed")
             return
         

@@ -20,8 +20,8 @@ def main():
                        help="Scan height in mm (default: 150.0)")
     parser.add_argument("--spacing", type=float, default=80.0,
                        help="Grid spacing in mm (default: 80.0)")
-    parser.add_argument("--confidence", type=float, default=0.3,
-                       help="YOLO confidence threshold (default: 0.3)")
+    parser.add_argument("--confidence", type=float, default=0.7,
+                       help="YOLO confidence threshold (default: 0.7)")
     parser.add_argument("--no-calibration", action="store_true",
                        help="Don't use camera calibration")
     parser.add_argument("--no-images", action="store_true",

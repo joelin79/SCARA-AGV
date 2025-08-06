@@ -144,7 +144,7 @@ The system automatically calculates reachable camera positions based on:
 
 ### Detection Parameters
 
-- **Confidence Threshold**: 0.3 is a good balance of detection vs false positives
+- **Confidence Threshold**: 0.7 for high-confidence detections only
 - **Duplicate Distance**: 30mm threshold for considering objects as duplicates
 
 ## Output Files
