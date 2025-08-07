@@ -109,10 +109,11 @@ class ObjectDetectionSystem:
         # Initialize camera calibration
         if self.use_calibration:
             try:
-                print("Loading camera calibration...")
+                print("Loading camera calibration from factory file...")
                 self.calibrator = CameraCalibrator()
-                if self.calibrator.load_calibration():
-                    print("✓ Camera calibration loaded successfully")
+                calibration_file = Path("RealSense/camera_calibration/camera_calibration_factory.json")
+                if self.calibrator.load_calibration(calibration_file):
+                    print("✓ Camera calibration loaded successfully from factory file")
                 else:
                     print("⚠ Camera calibration not found, using basic conversion")
                     self.use_calibration = False
@@ -662,6 +663,10 @@ class ObjectDetectionSystem:
             return float(obj)
         elif isinstance(obj, np.ndarray):
             return obj.tolist()
+        elif isinstance(obj, (np.int32, np.int64)):
+            return int(obj)
+        elif isinstance(obj, (np.float32, np.float64)):
+            return float(obj)
         else:
             return obj
     
