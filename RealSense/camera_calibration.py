@@ -47,7 +47,7 @@ class CameraCalibrator:
     Comprehensive camera calibration system for SCARA AGV
     """
     
-    def __init__(self, chessboard_size: Tuple[int, int] = (9, 6), 
+    def __init__(self, chessboard_size: Tuple[int, int] = (5, 4),
                  square_size: float = 20.0, fast_mode: bool = True):
         """
         Initialize camera calibrator
@@ -380,10 +380,10 @@ class CameraCalibrator:
                 print(f"Pose {captures+1}: base pos=({x:.1f},{y:.1f},{z:.1f}), cam dir={ext_angle:.1f}°")
                 try:
                     if self.is_real_arm and scara_control:
-                        scara_control.quick_camera(x, y, z, maintain_extension_direction=True, extension_angle=ext_angle)
+                        scara_control.quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=ext_angle)
                         time.sleep(2.0)
                     elif self.arm:
-                        self.arm.quick_camera(x, y, z, maintain_extension_direction=True, extension_angle=ext_angle)
+                        self.arm.quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=ext_angle)
                         time.sleep(1.0)
                     else:
                         time.sleep(0.5)
@@ -391,15 +391,57 @@ class CameraCalibrator:
                     print(f"Movement error: {e}")
                     continue
                 
-                # Try to capture and find chessboard
-                success, depth_image, color_image = self.get_frame()
-                if not success:
-                    print("  Failed to get camera frame, skipping")
-                    continue
+                # Live preview loop: show chessboard detection and wait for user to capture
+                preview_window_name = "Extrinsic Calibration"
+                user_abort = False
+                corners = None
+                detection_success = False
+                while True:
+                    success, depth_image, color_image = self.get_frame()
+                    if not success:
+                        print("  Failed to get camera frame")
+                        continue
+                    
+                    # Prepare display
+                    display_scale = 0.8
+                    display_height = int(color_image.shape[0] * display_scale)
+                    display_width = int(color_image.shape[1] * display_scale)
+                    display_image = cv2.resize(color_image, (display_width, display_height))
+                    
+                    font_scale = 0.6
+                    cv2.putText(display_image, f"Pose {captures+1} / target {min_captures}",
+                               (10, 25), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (0, 255, 0), 2)
+                    cv2.putText(display_image, "Press 'c' to capture, 'n' to skip, 'q' to abort",
+                               (10, 50), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 255, 255), 2)
+                    
+                    # Detect chessboard on full-res image
+                    detection_success, candidate_corners = self.find_chessboard_corners(color_image)
+                    if detection_success:
+                        display_corners = candidate_corners * display_scale
+                        cv2.drawChessboardCorners(display_image, self.chessboard_size, display_corners, detection_success)
+                        cv2.putText(display_image, "Chessboard detected!",
+                                    (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 255, 0), 2)
+                    else:
+                        cv2.putText(display_image, "Searching for chessboard...",
+                                    (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 255, 255), 2)
+                    
+                    cv2.imshow(preview_window_name, display_image)
+                    key = cv2.waitKey(1) & 0xFF
+                    if key == ord('q'):
+                        user_abort = True
+                        break
+                    if key == ord('n'):
+                        break
+                    if key == ord('c') and detection_success:
+                        corners = candidate_corners
+                        break
                 
-                ret, corners = self.find_chessboard_corners(color_image)
-                if not ret:
-                    print("  Chessboard not found, adjust board and retry")
+                if user_abort:
+                    cv2.destroyWindow(preview_window_name)
+                    return False
+                
+                if corners is None:
+                    print("  Skipped pose")
                     continue
                 
                 # Solve PnP: target (board) to camera
