@@ -565,8 +565,16 @@ class ObjectDetectionSystem:
         Returns:
             (x, y, z) in arm coordinate system
         """
-        if self.use_calibration and self.calibrator and self.calibrator.intrinsics and getattr(self.calibrator, "extrinsics", None) is not None:
-            # Use calibrated transformation only when both intrinsics and extrinsics are available
+        if (
+            self.use_calibration
+            and self.calibrator
+            and self.calibrator.intrinsics
+            and (
+                getattr(self.calibrator, "handeye_R_ee2cam", None) is not None
+                or getattr(self.calibrator, "extrinsics", None) is not None
+            )
+        ):
+            # Use calibrated transformation when hand-eye or legacy extrinsics are available
             return self.calibrator.pixel_to_arm_coordinates(pixel_x, pixel_y, depth_mm)
         else:
             # Use basic geometric transformation with yaw compensation from SCARA
