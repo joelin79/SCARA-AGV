@@ -14,6 +14,7 @@ from pathlib import Path
 from typing import Tuple, List, Dict, Optional, Union
 import pyrealsense2 as rs
 from dataclasses import dataclass
+import math
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
@@ -65,6 +66,9 @@ class CameraCalibrator:
         self.extrinsics = None
         self.camera_matrix = None
         self.dist_coeffs = None
+        # Hand-eye (AX=XB) parameters: ee -> cam
+        self.handeye_R_ee2cam = None
+        self.handeye_t_ee2cam = None
         
         # Initialize components
         self.camera = None
@@ -326,194 +330,158 @@ class CameraCalibrator:
     
     def calibrate_extrinsics(self, num_positions: int = 5) -> bool:
         """
-        Calibrate camera extrinsics (camera to arm transformation)
+        Calibrate camera extrinsics (hand-eye, AX=XB) to obtain T_ee_cam (ee -> camera)
         
         Args:
-            num_positions: Number of arm positions to use for calibration
-            
+            num_positions: Number of arm base positions to use for calibration
+        
         Returns:
             True if calibration successful
         """
-        if self.intrinsics is None:
-            print("Must calibrate intrinsics first")
+        if self.intrinsics is None or self.camera_matrix is None or self.dist_coeffs is None:
+            print("Must calibrate or load intrinsics first")
             return False
         
-        print(f"Starting extrinsic calibration with {num_positions} arm positions...")
-        print("This will move the arm to different positions to capture the chessboard")
+        print(f"Starting hand-eye (AX=XB) calibration with {num_positions} base positions...")
+        print("- Keep chessboard fixed in the workspace (world frame)")
+        print("- The procedure will move the arm and vary J4/camera orientation to ensure rotation diversity")
         
-        # Initialize camera for extrinsic calibration
+        # Initialize camera and arm
         self._initialize_camera()
         self._initialize_arm()
         
-        # Define arm positions for calibration
-        # These should be positions where the chessboard is visible
-        # Positions are for camera placement (not end effector)
+        # Define base camera target positions and a set of camera orientations to provide rotation diversity
         arm_positions = [
-            (250, -50, 200),      # Center
-            (250, 0, 200),   # Left
-            (250, -100, 200),    # Right
-            (300, -50, 200),   # Front
-            (200, -50, 200),    # Back
+            (250, -50, 200),
+            (250, 0, 200),
+            (250, -100, 200),
+            (300, -50, 200),
+            (200, -50, 200),
         ]
+        # Use several camera directions (degrees)
+        orientation_set = [-150.0, -120.0, -90.0, -60.0, -30.0, 0.0]
         
-        arm_points = []  # Arm coordinates
-        camera_points = []  # Camera coordinates
+        # Precompute chessboard 3D object points (Z=0 plane in target frame)
+        board_w, board_h = self.chessboard_size
+        objp = np.zeros((board_w * board_h, 3), np.float32)
+        objp[:, :2] = np.mgrid[0:board_w, 0:board_h].T.reshape(-1, 2)
+        objp *= float(self.square_size)
+        
+        R_gripper2base_list = []
+        t_gripper2base_list = []
+        R_target2cam_list = []
+        t_target2cam_list = []
+        
+        captures = 0
+        min_captures = max(12, num_positions * 2)
         
         for i, (x, y, z) in enumerate(arm_positions[:num_positions]):
-            print(f"Position {i+1}/{num_positions}: ({x}, {y}, {z})")
-            
-            # Move arm to position
-            if self.is_real_arm and scara_control:
-                # Use real SCARA functions
-                print(f"Moving camera to position: ({x}, {y}, {z})")
-                scara_control.quick_camera(x, y, z)
-                time.sleep(3.0)  # Wait for movement
-            elif self.arm:
-                # Use simulator
-                self.arm.quick_camera(x, y, z)
-                time.sleep(2.0)  # Wait for movement
-            else:
-                print(f"Simulating movement to position: ({x}, {y}, {z})")
-                time.sleep(1.0)  # Simulate movement time
-            
-            # Show live camera view for positioning
-            print(f"Position the chessboard in view and press 'c' to capture, 's' to skip this position")
-            chessboard_found = False
-            
-            while not chessboard_found:
-                # Capture image
+            for j, ext_angle in enumerate(orientation_set):
+                print(f"Pose {captures+1}: base pos=({x:.1f},{y:.1f},{z:.1f}), cam dir={ext_angle:.1f}°")
+                try:
+                    if self.is_real_arm and scara_control:
+                        scara_control.quick_camera(x, y, z, maintain_extension_direction=True, extension_angle=ext_angle)
+                        time.sleep(2.0)
+                    elif self.arm:
+                        self.arm.quick_camera(x, y, z, maintain_extension_direction=True, extension_angle=ext_angle)
+                        time.sleep(1.0)
+                    else:
+                        time.sleep(0.5)
+                except Exception as e:
+                    print(f"Movement error: {e}")
+                    continue
+                
+                # Try to capture and find chessboard
                 success, depth_image, color_image = self.get_frame()
                 if not success:
-                    print(f"Failed to get camera frame at position {i+1}")
-                    time.sleep(0.1)
+                    print("  Failed to get camera frame, skipping")
                     continue
                 
-                # Create display image
-                display_scale = 0.8
-                display_height = int(color_image.shape[0] * display_scale)
-                display_width = int(color_image.shape[1] * display_scale)
-                display_image = cv2.resize(color_image, (display_width, display_height))
-                
-                # Try to find chessboard
                 ret, corners = self.find_chessboard_corners(color_image)
-                
-                # Add status text
-                font_scale = 0.6
-                cv2.putText(display_image, f"Extrinsic Calibration - Position {i+1}/{num_positions}", 
-                           (10, 25), cv2.FONT_HERSHEY_SIMPLEX, font_scale, (255, 255, 255), 2)
-                cv2.putText(display_image, f"Camera at: ({x:.0f}, {y:.0f}, {z:.0f})", 
-                           (10, 50), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 255, 255), 2)
-                
-                if ret:
-                    # Draw chessboard corners
-                    display_corners = corners * display_scale
-                    cv2.drawChessboardCorners(display_image, self.chessboard_size, display_corners, ret)
-                    cv2.putText(display_image, "Chessboard detected! Press 'c' to capture", 
-                               (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 255, 0), 2)
-                else:
-                    cv2.putText(display_image, "Position chessboard in view", 
-                               (10, 75), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (0, 0, 255), 2)
-                
-                cv2.putText(display_image, "Press 'c' to capture, 's' to skip, 'q' to quit", 
-                           (10, display_height - 10), cv2.FONT_HERSHEY_SIMPLEX, font_scale * 0.8, (255, 255, 255), 2)
-                
-                cv2.imshow('Extrinsic Calibration - Camera View', display_image)
-                key = cv2.waitKey(30) & 0xFF
-                
-                if key == ord('q'):
-                    cv2.destroyAllWindows()
-                    return False
-                elif key == ord('s'):
-                    print(f"Skipping position {i+1}")
-                    chessboard_found = True  # Exit loop but don't use this position
+                if not ret:
+                    print("  Chessboard not found, adjust board and retry")
                     continue
-                elif key == ord('c'):
-                    if ret:
-                        chessboard_found = True
-                        break
+                
+                # Solve PnP: target (board) to camera
+                corners2 = corners.reshape(-1, 2).astype(np.float32)
+                objp2 = objp.reshape(-1, 3).astype(np.float32)
+                ok, rvec, tvec = cv2.solvePnP(objp2, corners2, self.camera_matrix, self.dist_coeffs, flags=cv2.SOLVEPNP_ITERATIVE)
+                if not ok:
+                    print("  solvePnP failed, skipping")
+                    continue
+                R_tc, _ = cv2.Rodrigues(rvec)  # target->camera rotation
+                t_tc = tvec.reshape(3)
+                
+                # Build gripper (ee) -> base from SCARA current state
+                try:
+                    if scara_control is not None:
+                        j1 = scara_control.CUR_J1
+                        j2 = scara_control.CUR_J2
+                        j4 = scara_control.CUR_J4
+                        theta = math.radians(j1 + j2 + j4)
+                        R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
+                                         [math.sin(theta),  math.cos(theta), 0.0],
+                                         [0.0,              0.0,             1.0]], dtype=float)
+                        t_be = np.array([scara_control.CUR_X, scara_control.CUR_Y, scara_control.CUR_Z], dtype=float)
+                    elif self.arm is not None:
+                        # Simulator: use its API if available, otherwise approximate from direction
+                        cx, cy, cz = self.arm.get_camera_position()
+                        # ee is 140mm behind camera along -direction
+                        yaw_deg = self.arm.current_j4
+                        yaw_rad = math.radians(yaw_deg)
+                        ee_x = cx - 140.0 * math.cos(yaw_rad)
+                        ee_y = cy - 140.0 * math.sin(yaw_rad)
+                        ee_z = cz
+                        R_be = np.array([[math.cos(yaw_rad), -math.sin(yaw_rad), 0.0],
+                                         [math.sin(yaw_rad),  math.cos(yaw_rad), 0.0],
+                                         [0.0,                0.0,               1.0]], dtype=float)
+                        t_be = np.array([ee_x, ee_y, ee_z], dtype=float)
                     else:
-                        print("No chessboard detected. Position the chessboard and try again.")
-            
-            # If we skipped this position, continue to next
-            if key == ord('s'):
-                continue
-            
-            # Process the captured chessboard
-            if not ret:
-                print(f"No chessboard found at position {i+1}")
-                continue
-            
-            # Get depth at center
-            center_corner = corners[self.chessboard_size[0] * self.chessboard_size[1] // 2][0]
-            center_x, center_y = int(center_corner[0]), int(center_corner[1])
-            depth = depth_image[center_y, center_x]
-            
-            if depth == 0:
-                print(f"Invalid depth at position {i+1}")
-                continue
-            
-            # Convert pixel to camera coordinates
-            camera_x = (center_x - self.intrinsics.cx) * depth / self.intrinsics.fx
-            camera_y = (center_y - self.intrinsics.cy) * depth / self.intrinsics.fy
-            camera_z = depth
-            
-            # Store points
-            arm_points.append([x, y, z])
-            camera_points.append([camera_x, camera_y, camera_z])
-            
-            print(f"  Arm: ({x}, {y}, {z}) -> Camera: ({camera_x:.1f}, {camera_y:.1f}, {camera_z:.1f})")
+                        print("  No arm interface available, skipping pose")
+                        continue
+                except Exception as e:
+                    print(f"  Pose extraction failed: {e}")
+                    continue
+                
+                # OpenCV calibrateHandEye expects gripper->base and target->camera
+                R_gripper2base_list.append(R_be)
+                t_gripper2base_list.append(t_be)
+                R_target2cam_list.append(R_tc)
+                t_target2cam_list.append(t_tc)
+                captures += 1
+                
+                if captures >= min_captures:
+                    break
+            if captures >= min_captures:
+                break
         
-        if len(arm_points) < 3:
-            print("Not enough valid points for extrinsic calibration")
+        if captures < 6:
+            print("Not enough valid poses for hand-eye calibration")
             return False
         
-        # Calculate transformation using SVD
-        arm_points = np.array(arm_points, dtype=np.float32)
-        camera_points = np.array(camera_points, dtype=np.float32)
+        print(f"Collected {captures} valid poses. Solving hand-eye...")
+        try:
+            R_cam2gripper, t_cam2gripper = cv2.calibrateHandEye(
+                R_gripper2base_list, t_gripper2base_list,
+                R_target2cam_list, t_target2cam_list,
+                method=cv2.CALIB_HAND_EYE_TSAI
+            )
+        except Exception as e:
+            print(f"calibrateHandEye failed: {e}")
+            return False
         
-        # Center the points
-        arm_center = np.mean(arm_points, axis=0)
-        camera_center = np.mean(camera_points, axis=0)
+        # Convert to ee -> cam
+        R_ee2cam = R_cam2gripper.T
+        t_ee2cam = -R_cam2gripper.T @ t_cam2gripper.reshape(3)
         
-        arm_centered = arm_points - arm_center
-        camera_centered = camera_points - camera_center
+        self.handeye_R_ee2cam = R_ee2cam
+        self.handeye_t_ee2cam = t_ee2cam
         
-        # Calculate rotation matrix using SVD
-        H = camera_centered.T @ arm_centered
-        U, S, Vt = np.linalg.svd(H)
-        R = Vt.T @ U.T
+        print("Hand-eye calibration completed!")
+        print(f"R_ee2cam:\n{R_ee2cam}")
+        print(f"t_ee2cam: {t_ee2cam}")
         
-        # Ensure proper rotation matrix (det = 1)
-        if np.linalg.det(R) < 0:
-            Vt[-1, :] *= -1
-            R = Vt.T @ U.T
-        
-        # Calculate translation
-        t = arm_center - R @ camera_center
-        
-        # Store extrinsics
-        self.extrinsics = CameraExtrinsics(
-            rotation_matrix=R,
-            translation_vector=t
-        )
-        
-        print("Extrinsic calibration completed!")
-        print(f"Rotation matrix:\n{R}")
-        print(f"Translation vector: {t}")
-        
-        # Calculate transformation error
-        errors = []
-        for i in range(len(arm_points)):
-            transformed = R @ camera_points[i] + t
-            error = np.linalg.norm(arm_points[i] - transformed)
-            errors.append(error)
-        
-        mean_error = np.mean(errors)
-        print(f"Mean transformation error: {mean_error:.2f} mm")
-        
-        # Close the camera view window
         cv2.destroyAllWindows()
-        
         return True
     
     def save_calibration(self, filename: str = "camera_calibration.json"):
@@ -540,6 +508,13 @@ class CameraCalibrator:
             calibration_data["extrinsics"] = {
                 "rotation_matrix": self.extrinsics.rotation_matrix.tolist(),
                 "translation_vector": self.extrinsics.translation_vector.tolist()
+            }
+        
+        # Save hand-eye if available
+        if self.handeye_R_ee2cam is not None and self.handeye_t_ee2cam is not None:
+            calibration_data["handeye"] = {
+                "R_ee2cam": self.handeye_R_ee2cam.tolist(),
+                "t_ee2cam": self.handeye_t_ee2cam.tolist()
             }
         
         filepath = self.calibration_dir / filename
@@ -585,13 +560,19 @@ class CameraCalibrator:
             self.camera_matrix = np.array(data["camera_matrix"])
             self.dist_coeffs = np.array(data["dist_coeffs"])
             
-            # Load extrinsics if available
+            # Load old-style extrinsics if available
             if "extrinsics" in data:
                 extrinsics_data = data["extrinsics"]
                 self.extrinsics = CameraExtrinsics(
                     rotation_matrix=np.array(extrinsics_data["rotation_matrix"]),
                     translation_vector=np.array(extrinsics_data["translation_vector"])
                 )
+            
+            # Load hand-eye calibration if available
+            if "handeye" in data:
+                he = data["handeye"]
+                self.handeye_R_ee2cam = np.array(he["R_ee2cam"]) if "R_ee2cam" in he else None
+                self.handeye_t_ee2cam = np.array(he["t_ee2cam"]) if "t_ee2cam" in he else None
             
             print(f"Calibration loaded from {filepath}")
             return True
@@ -634,19 +615,52 @@ class CameraCalibrator:
             print("No calibration data available")
             return 0, 0, 0
         
-        # Convert to camera coordinates (undistorted)
+        # Convert to camera coordinates (undistorted pinhole model)
         camera_x = (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
         camera_y = (pixel_y - self.intrinsics.cy) * depth_mm / self.intrinsics.fy
         camera_z = depth_mm
         
-        # Apply extrinsics transformation if available
+        camera_point = np.array([camera_x, camera_y, camera_z], dtype=float)
+        
+        # Preferred: use hand-eye T_ee_cam and current SCARA pose to compute T_base_cam
+        if self.handeye_R_ee2cam is not None and self.handeye_t_ee2cam is not None:
+            try:
+                if scara_control is not None:
+                    theta = math.radians(scara_control.CUR_J1 + scara_control.CUR_J2 + scara_control.CUR_J4)
+                    R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
+                                     [math.sin(theta),  math.cos(theta), 0.0],
+                                     [0.0,              0.0,             1.0]], dtype=float)
+                    t_be = np.array([scara_control.CUR_X, scara_control.CUR_Y, scara_control.CUR_Z], dtype=float)
+                elif self.arm is not None:
+                    # Approximate from simulator state
+                    cx, cy, cz = self.arm.get_camera_position()
+                    yaw_rad = math.radians(self.arm.current_j4)
+                    ee_x = cx - 140.0 * math.cos(yaw_rad)
+                    ee_y = cy - 140.0 * math.sin(yaw_rad)
+                    ee_z = cz
+                    R_be = np.array([[math.cos(yaw_rad), -math.sin(yaw_rad), 0.0],
+                                     [math.sin(yaw_rad),  math.cos(yaw_rad), 0.0],
+                                     [0.0,                0.0,               1.0]], dtype=float)
+                    t_be = np.array([ee_x, ee_y, ee_z], dtype=float)
+                else:
+                    # Cannot determine pose
+                    raise RuntimeError("No arm interface for pose computation")
+                # Compose R_base_cam = R_be * R_ec ; t_base_cam = R_be * t_ec + t_be
+                R_bc = R_be @ self.handeye_R_ee2cam
+                t_bc = R_be @ self.handeye_t_ee2cam + t_be
+                arm_point = R_bc @ camera_point + t_bc
+                return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
+            except Exception as e:
+                print(f"Hand-eye transform failed, falling back: {e}")
+                # Fall through to other methods
+        
+        # Legacy: if a static extrinsics (camera->arm base) is present, apply it
         if self.extrinsics is not None:
-            camera_point = np.array([camera_x, camera_y, camera_z])
             arm_point = self.extrinsics.rotation_matrix @ camera_point + self.extrinsics.translation_vector
-            return arm_point[0], arm_point[1], arm_point[2]
-        else:
-            # Fall back to simple transformation
-            return camera_x, camera_y, camera_z
+            return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
+        
+        # Fallback: return camera coordinates if nothing else is available
+        return float(camera_x), float(camera_y), float(camera_z)
     
     def cleanup(self):
         """Clean up resources"""
