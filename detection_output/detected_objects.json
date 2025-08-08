@@ -1,14 +1,62 @@
 {
   "scan_metadata": {
-    "timestamp": "2025-08-07 08:57:34",
-    "total_objects": 12,
+    "timestamp": "2025-08-08 15:09:38",
+    "total_objects": 2,
     "scan_positions": 12,
     "model_path": "C:\\Users\\User\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
   },
   "detected_objects": [
     {
       "object_id": 0,
-      "class_name": "block",
-      "confidence": 0.9491584300994873,
+      "class_name": "Cube",
+      "confidence": 0.8817636370658875,
       "bbox": [
-        
+        107,
+        234,
+        188,
+        312
+      ],
+      "center_pixel": [
+        147,
+        273
+      ],
+      "depth_mm": 196.0,
+      "arm_coordinates": {
+        "x": 260.9890935705642,
+        "y": -55.97116206036816,
+        "z": 123.86249435675953
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": 0.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 1,
+      "class_name": "Partial",
+      "confidence": 0.8117465376853943,
+      "bbox": [
+        118,
+        0,
+        200,
+        10
+      ],
+      "center_pixel": [
+        159,
+        5
+      ],
+      "depth_mm": 195.0,
+      "arm_coordinates": {
+        "x": 254.7086273407931,
+        "y": 29.899503152217733,
+        "z": 131.56727972093933
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": 100.0,
+        "z": 150.0
+      }
+    }
+  ]
+}

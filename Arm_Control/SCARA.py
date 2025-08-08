@@ -8,8 +8,8 @@ ser = serial.Serial(port='COM3', baudrate=115200, timeout=1)
 RIGHT_HANDED_MODE = True
 
 HOME_FEEDRATE = 3000
-MAX_FEEDRATE = 2000
-MAX_ACC = 100
+MAX_FEEDRATE = 5000
+MAX_ACC = 70
 
 PULSE_J1 = 88.889
 PULSE_J2 = 88.889
