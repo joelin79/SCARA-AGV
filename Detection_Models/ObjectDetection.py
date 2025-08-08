@@ -667,6 +667,10 @@ class ObjectDetectionSystem:
             return int(obj)
         elif isinstance(obj, (np.float32, np.float64)):
             return float(obj)
+        elif isinstance(obj, tuple):
+            return [self._convert_numpy(i) for i in obj]
+        elif isinstance(obj, np.bool_):
+            return bool(obj)
         else:
             return obj
     
@@ -693,21 +697,21 @@ class ObjectDetectionSystem:
             
             for obj in self.detected_objects:
                 obj_data = {
-                    "object_id": obj.object_id,
+                    "object_id": int(obj.object_id),
                     "class_name": obj.class_name,
-                    "confidence": obj.confidence,
-                    "bbox": obj.bbox,
-                    "center_pixel": obj.center_pixel,
-                    "depth_mm": obj.depth_mm,
+                    "confidence": float(obj.confidence),
+                    "bbox": [int(obj.bbox[0]), int(obj.bbox[1]), int(obj.bbox[2]), int(obj.bbox[3])],
+                    "center_pixel": [int(obj.center_pixel[0]), int(obj.center_pixel[1])],
+                    "depth_mm": float(obj.depth_mm),
                     "arm_coordinates": {
-                        "x": obj.arm_coords[0],
-                        "y": obj.arm_coords[1],
-                        "z": obj.arm_coords[2]
+                        "x": float(obj.arm_coords[0]),
+                        "y": float(obj.arm_coords[1]),
+                        "z": float(obj.arm_coords[2])
                     },
                     "camera_position": {
-                        "x": obj.camera_position[0],
-                        "y": obj.camera_position[1],
-                        "z": obj.camera_position[2]
+                        "x": float(obj.camera_position[0]),
+                        "y": float(obj.camera_position[1]),
+                        "z": float(obj.camera_position[2])
                     }
                 }
                 results["detected_objects"].append(obj_data)
