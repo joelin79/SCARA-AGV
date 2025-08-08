@@ -6,3 +6,5 @@
 *.jpg
 *.pyc
 *.pyc
+RealSense/__pycache__/realsense_depth.cpython-312.pyc
+*.pyc
