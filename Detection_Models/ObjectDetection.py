@@ -565,11 +565,11 @@ class ObjectDetectionSystem:
         Returns:
             (x, y, z) in arm coordinate system
         """
-        if self.use_calibration and self.calibrator and self.calibrator.intrinsics:
-            # Use calibrated transformation
+        if self.use_calibration and self.calibrator and self.calibrator.intrinsics and getattr(self.calibrator, "extrinsics", None) is not None:
+            # Use calibrated transformation only when both intrinsics and extrinsics are available
             return self.calibrator.pixel_to_arm_coordinates(pixel_x, pixel_y, depth_mm)
         else:
-            # Use basic geometric transformation
+            # Use basic geometric transformation with yaw compensation from SCARA
             # This is a simplified version - assumes camera intrinsics
             # Typical RealSense D435i parameters (approximate)
             fx = fy = 615.0  # Approximate focal length for 640x480
@@ -582,8 +582,18 @@ class ObjectDetectionSystem:
             
             # Transform to arm coordinates (simplified - assumes camera pointing down)
             cam_x, cam_y, cam_z = camera_position
-            arm_x = cam_x + camera_x
-            arm_y = cam_y + camera_y
+            
+            # Compensate for camera yaw relative to base (rotation around Z)
+            try:
+                yaw_deg = scara_control.get_camera_direction() if scara_control is not None else 0.0
+            except Exception:
+                yaw_deg = 0.0
+            yaw_rad = math.radians(yaw_deg)
+            world_dx = camera_x * math.cos(yaw_rad) - camera_y * math.sin(yaw_rad)
+            world_dy = camera_x * math.sin(yaw_rad) + camera_y * math.cos(yaw_rad)
+            
+            arm_x = cam_x + world_dx
+            arm_y = cam_y + world_dy
             arm_z = cam_z - camera_z  # Camera pointing down
             
             return (arm_x, arm_y, arm_z)
