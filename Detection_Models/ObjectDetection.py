@@ -111,7 +111,7 @@ class ObjectDetectionSystem:
             try:
                 print("Loading camera calibration from factory file...")
                 self.calibrator = CameraCalibrator()
-                calibration_file = Path("RealSense/camera_calibration/camera_calibration_factory.json")
+                calibration_file = project_root / "RealSense" / "camera_calibration" / "camera_calibration_factory.json"
                 if self.calibrator.load_calibration(calibration_file):
                     print("✓ Camera calibration loaded successfully from factory file")
                 else:

@@ -11,7 +11,7 @@ import numpy as np
 import cv2
 import json
 from pathlib import Path
-from typing import Tuple, List, Dict, Optional
+from typing import Tuple, List, Dict, Optional, Union
 import pyrealsense2 as rs
 from dataclasses import dataclass
 
@@ -548,9 +548,18 @@ class CameraCalibrator:
         
         print(f"Calibration saved to {filepath}")
     
-    def load_calibration(self, filename: str = "camera_calibration.json") -> bool:
-        """Load calibration parameters from file"""
-        filepath = self.calibration_dir / filename
+    def load_calibration(self, filename: Union[str, Path] = "camera_calibration.json") -> bool:
+        """Load calibration parameters from file
+        
+        Accepts either a bare filename (looked up in `self.calibration_dir`) or a
+        relative/absolute path which will be used as-is.
+        """
+        input_path = Path(filename)
+        # If a directory component is provided or the path is absolute, use it directly
+        if input_path.is_absolute() or len(input_path.parts) > 1:
+            filepath = input_path
+        else:
+            filepath = self.calibration_dir / input_path
         
         if not filepath.exists():
             print(f"Calibration file not found: {filepath}")
