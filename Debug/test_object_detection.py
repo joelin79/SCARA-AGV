@@ -24,7 +24,7 @@ def test_object_detection():
         
         print("\n1. Initializing detection system...")
         detector = SCARAObjectDetection(
-            model_path="yolo/my_model/my_model.pt",
+            model_path="../yolo/my_model/my_model.pt",
             confidence_threshold=0.4,
             camera_height=300.0,
             grid_size=3,
@@ -136,7 +136,7 @@ def test_without_camera():
         
         print("\n1. Initializing detection system in simulation mode...")
         detector = SCARAObjectDetection(
-            model_path="yolo/my_model/my_model.pt",
+            model_path="../yolo/my_model/my_model.pt",
             confidence_threshold=0.4,
             camera_height=300.0,
             grid_size=2,  # Smaller grid for testing

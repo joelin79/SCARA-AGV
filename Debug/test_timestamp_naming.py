@@ -19,7 +19,7 @@ def test_timestamp_naming():
         
         print("\n1. Creating ObjectDetectionSystem...")
         detector = ObjectDetectionSystem(
-            model_path="yolo/my_model/my_model.pt",
+            model_path="../yolo/my_model/my_model.pt",
             use_calibration=True,
             save_images=True
         )

@@ -76,7 +76,7 @@ def create_sample_data():
     }
     
     # Save to file
-    with open("sample_detection_results.json", "w") as f:
+    with open("../sample_detection_results.json", "w") as f:
         json.dump(sample_results, f, indent=2)
     
     print("Sample detection data created: sample_detection_results.json")
@@ -92,7 +92,7 @@ def demonstrate_visualization():
         from visualization_3d import ObjectVisualizer3D
         
         # Create sample data if no existing data
-        if not os.path.exists("sample_detection_results.json"):
+        if not os.path.exists("../sample_detection_results.json"):
             create_sample_data()
         
         # Create visualizer
@@ -211,7 +211,7 @@ def demonstrate_interactive():
         from visualization_3d import ObjectVisualizer3D
         
         # Create sample data if needed
-        if not os.path.exists("sample_detection_results.json"):
+        if not os.path.exists("../sample_detection_results.json"):
             create_sample_data()
         
         # Create visualizer

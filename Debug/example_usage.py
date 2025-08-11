@@ -24,7 +24,7 @@ def main():
         
         # Create detector with default settings
         detector = SCARAObjectDetection(
-            model_path="yolo/my_model/my_model.pt",
+            model_path="../yolo/my_model/my_model.pt",
             confidence_threshold=0.4,
             camera_height=300.0,
             grid_size=3,
@@ -162,7 +162,7 @@ def quick_test():
         from Detection_Models.ObjectDetection import SCARAObjectDetection
         
         detector = SCARAObjectDetection(
-            model_path="yolo/my_model/my_model.pt",
+            model_path="../yolo/my_model/my_model.pt",
             grid_size=2  # Smaller grid for quick test
         )
         

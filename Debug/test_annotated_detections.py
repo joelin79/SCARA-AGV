@@ -19,7 +19,7 @@ def test_annotated_detections():
         
         print("\n1. Initializing Object Detection System...")
         detector = ObjectDetectionSystem(
-            model_path="yolo/my_model/my_model.pt",
+            model_path="../yolo/my_model/my_model.pt",
             use_calibration=True,
             save_images=True
         )
