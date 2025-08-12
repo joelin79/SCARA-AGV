@@ -75,11 +75,13 @@ def create_sample_data():
         "objects": sample_objects
     }
     
-    # Save to file
-    with open("../sample_detection_results.json", "w") as f:
+    # Save to file next to this script
+    base_dir = Path(__file__).parent
+    sample_path = base_dir / "sample_detection_results.json"
+    with open(sample_path, "w") as f:
         json.dump(sample_results, f, indent=2)
     
-    print("Sample detection data created: sample_detection_results.json")
+    print(f"Sample detection data created: {sample_path.name}")
     return sample_results
 
 def demonstrate_visualization():
@@ -91,15 +93,18 @@ def demonstrate_visualization():
         # Import visualizer
         from visualization_3d import ObjectVisualizer3D
         
+        base_dir = Path(__file__).parent
+        sample_path = base_dir / "sample_detection_results.json"
+        
         # Create sample data if no existing data
-        if not os.path.exists("../sample_detection_results.json"):
+        if not sample_path.exists():
             create_sample_data()
         
         # Create visualizer
         visualizer = ObjectVisualizer3D()
         
         # Load objects
-        if visualizer.load_objects_from_file("sample_detection_results.json"):
+        if visualizer.load_objects_from_file(str(sample_path)):
             print(f"Loaded {len(visualizer.objects)} objects for visualization")
             
             # Demonstrate different visualization options
@@ -151,19 +156,18 @@ def demonstrate_with_real_data():
         # Create visualizer
         visualizer = ObjectVisualizer3D()
         
+        base_dir = Path(__file__).parent
+        
         # Try to load from various possible files
         possible_files = [
-            "detection_results.json",
-            "test_detection_results.json",
-            "example_results.json",
-            "sample_detection_results.json"
+            base_dir / "detected_objects.json",
         ]
         
         loaded = False
-        for filename in possible_files:
-            if os.path.exists(filename):
-                print(f"Found detection results: {filename}")
-                if visualizer.load_objects_from_file(filename):
+        for path in possible_files:
+            if path.exists():
+                print(f"Found detection results: {path.name}")
+                if visualizer.load_objects_from_file(str(path)):
                     loaded = True
                     break
         
@@ -210,15 +214,18 @@ def demonstrate_interactive():
         # Import visualizer
         from visualization_3d import ObjectVisualizer3D
         
+        base_dir = Path(__file__).parent
+        sample_path = base_dir / "sample_detection_results.json"
+        
         # Create sample data if needed
-        if not os.path.exists("../sample_detection_results.json"):
+        if not sample_path.exists():
             create_sample_data()
         
         # Create visualizer
         visualizer = ObjectVisualizer3D()
         
         # Load objects
-        if visualizer.load_objects_from_file("sample_detection_results.json"):
+        if visualizer.load_objects_from_file(str(sample_path)):
             print("Creating interactive 3D plot...")
             print("(This will open in your web browser)")
             

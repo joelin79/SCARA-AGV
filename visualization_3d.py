@@ -51,14 +51,77 @@ class ObjectVisualizer3D:
             with open(filename, 'r') as f:
                 data = json.load(f)
             
-            if 'objects' in data:
-                self.objects = data['objects']
-                print(f"Loaded {len(self.objects)} objects from {filename}")
-                return True
+            normalized_objects = []
+            
+            # Legacy schema: { "objects": [ ... ] }
+            if 'objects' in data and isinstance(data['objects'], list):
+                normalized_objects = data['objects']
+            
+            # New schema: { "scan_metadata": { ... }, "detected_objects": [ ... ] }
+            elif 'detected_objects' in data and isinstance(data['detected_objects'], list):
+                for raw_obj in data['detected_objects']:
+                    class_name = raw_obj.get('class_name', 'object')
+                    confidence = float(raw_obj.get('confidence', 0.0) or 0.0)
+                    
+                    # arm_coordinates can be dict (x,y,z) or list [x,y,z]
+                    arm_coords_raw = raw_obj.get('arm_coordinates')
+                    if isinstance(arm_coords_raw, dict):
+                        arm_x = float(arm_coords_raw.get('x', 0.0) or 0.0)
+                        arm_y = float(arm_coords_raw.get('y', 0.0) or 0.0)
+                        arm_z = float(arm_coords_raw.get('z', 0.0) or 0.0)
+                        arm_coordinates = [arm_x, arm_y, arm_z]
+                    elif isinstance(arm_coords_raw, (list, tuple)) and len(arm_coords_raw) >= 3:
+                        arm_coordinates = [float(arm_coords_raw[0]), float(arm_coords_raw[1]), float(arm_coords_raw[2])]
+                    else:
+                        arm_coordinates = [0.0, 0.0, 0.0]
+                    
+                    # pixel coordinates: support either 'pixel_coordinates' or 'center_pixel'
+                    pixel_raw = raw_obj.get('pixel_coordinates') or raw_obj.get('center_pixel')
+                    if isinstance(pixel_raw, (list, tuple)) and len(pixel_raw) >= 2:
+                        pixel_coordinates = [int(pixel_raw[0]), int(pixel_raw[1])]
+                    else:
+                        pixel_coordinates = [0, 0]
+                    
+                    # depth
+                    depth_mm_value = raw_obj.get('depth_mm')
+                    try:
+                        depth_mm = float(depth_mm_value) if depth_mm_value is not None else float(arm_coordinates[2])
+                    except Exception:
+                        depth_mm = float(arm_coordinates[2])
+                    
+                    # camera_position can be dict (x,y,z) or list [x,y,z]
+                    cam_pos_raw = raw_obj.get('camera_position')
+                    if isinstance(cam_pos_raw, dict):
+                        cam_x = float(cam_pos_raw.get('x', 0.0) or 0.0)
+                        cam_y = float(cam_pos_raw.get('y', 0.0) or 0.0)
+                        cam_z = float(cam_pos_raw.get('z', 0.0) or 0.0)
+                        camera_position = [cam_x, cam_y, cam_z]
+                    elif isinstance(cam_pos_raw, (list, tuple)) and len(cam_pos_raw) >= 3:
+                        camera_position = [float(cam_pos_raw[0]), float(cam_pos_raw[1]), float(cam_pos_raw[2])]
+                    else:
+                        camera_position = [0.0, 0.0, 0.0]
+                    
+                    camera_angle = raw_obj.get('camera_angle', None)
+                    timestamp = raw_obj.get('timestamp', None)
+                    
+                    normalized_objects.append({
+                        'class_name': class_name,
+                        'confidence': confidence,
+                        'arm_coordinates': arm_coordinates,
+                        'pixel_coordinates': pixel_coordinates,
+                        'depth_mm': depth_mm,
+                        'camera_position': camera_position,
+                        'camera_angle': camera_angle,
+                        'timestamp': timestamp
+                    })
             else:
-                print(f"No objects found in {filename}")
+                print(f"Unrecognized JSON schema in {filename}")
                 return False
-                
+            
+            self.objects = normalized_objects
+            print(f"Loaded {len(self.objects)} objects from {filename}")
+            return True
+            
         except Exception as e:
             print(f"Error loading objects: {e}")
             return False
