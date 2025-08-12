@@ -177,6 +177,25 @@ class HandEyeVisualizer:
                 if R.shape == (3, 3) and t.shape == (3,):
                     self.R_ee2cam = R
                     self.t_ee2cam = t
+
+                    Rz180 = np.array([[-1, 0, 0],
+                          [ 0,-1, 0],
+                          [ 0, 0, 1]], float)      # flip to opposite XY side
+                    Rx180 = np.array([[ 1, 0, 0],
+                          [ 0,-1, 0],
+                          [ 0, 0,-1]], float)      # flip cam Z to point down
+
+                    Rcorr = Rx180 @ Rz180                      # apply both flips
+                    self.R_ee2cam = Rcorr @ self.R_ee2cam
+                    self.t_ee2cam = Rcorr @ self.t_ee2cam
+
+                    Rz90 = np.array([[0., 1., 0.],
+                    [-1.,  0., 0.],
+                    [0.,  0., 1.]], float)  # CW 90° around +Z (right-handed)
+
+                    # Rotate camera axes about its own origin: post-multiply
+                    self.R_ee2cam = self.R_ee2cam @ Rz90
+
                     print('Loaded hand-eye (EE->Cam) from calibration file')
             except Exception as e:
                 print(f"Invalid handeye block: {e}")

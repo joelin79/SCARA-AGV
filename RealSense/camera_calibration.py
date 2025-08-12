@@ -615,6 +615,24 @@ class CameraCalibrator:
                 he = data["handeye"]
                 self.handeye_R_ee2cam = np.array(he["R_ee2cam"]) if "R_ee2cam" in he else None
                 self.handeye_t_ee2cam = np.array(he["t_ee2cam"]) if "t_ee2cam" in he else None
+
+                Rz180 = np.array([[-1, 0, 0],
+                          [ 0,-1, 0],
+                          [ 0, 0, 1]], float)      # flip to opposite XY side
+                Rx180 = np.array([[ 1, 0, 0],
+                          [ 0,-1, 0],
+                          [ 0, 0,-1]], float)      # flip cam Z to point down
+
+                Rcorr = Rx180 @ Rz180                      # apply both flips
+                self.handeye_R_ee2cam = Rcorr @ self.handeye_R_ee2cam
+                self.handeye_t_ee2cam = Rcorr @ self.handeye_t_ee2cam
+
+                Rz90 = np.array([[0., 1., 0.],
+                 [-1.,  0., 0.],
+                 [0.,  0., 1.]], float)  # CW 90° around +Z (right-handed)
+
+                # Rotate camera axes about its own origin: post-multiply
+                self.handeye_R_ee2cam = self.handeye_R_ee2cam @ Rz90
             
             print(f"Calibration loaded from {filepath}")
             return True
