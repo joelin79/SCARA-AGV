@@ -1,0 +1,114 @@
+{
+  "scan_metadata": {
+    "timestamp": "2025-08-11 17:11:05",
+    "total_objects": 4,
+    "scan_positions": 12,
+    "model_path": "C:\\Users\\User\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
+  },
+  "detected_objects": [
+    {
+      "object_id": 0,
+      "class_name": "Cube",
+      "confidence": 0.89875328540802,
+      "bbox": [
+        233,
+        91,
+        314,
+        174
+      ],
+      "center_pixel": [
+        273,
+        132
+      ],
+      "depth_mm": 199.0,
+      "arm_coordinates": {
+        "x": 213.91336591258772,
+        "y": 279.9303339031695,
+        "z": 355.3858813995172
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": 0.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 1,
+      "class_name": "Cube",
+      "confidence": 0.8830537796020508,
+      "bbox": [
+        520,
+        341,
+        612,
+        428
+      ],
+      "center_pixel": [
+        566,
+        384
+      ],
+      "depth_mm": 193.0,
+      "arm_coordinates": {
+        "x": 191.6825012508837,
+        "y": 88.33448293482047,
+        "z": 349.9802335917153
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -100.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 2,
+      "class_name": "Cube",
+      "confidence": 0.87257319688797,
+      "bbox": [
+        217,
+        362,
+        304,
+        448
+      ],
+      "center_pixel": [
+        260,
+        405
+      ],
+      "depth_mm": 195.0,
+      "arm_coordinates": {
+        "x": 299.4485910070178,
+        "y": 182.34605348044497,
+        "z": 358.12591078640764
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -100.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 3,
+      "class_name": "Cube",
+      "confidence": 0.8274046182632446,
+      "bbox": [
+        539,
+        25,
+        632,
+        115
+      ],
+      "center_pixel": [
+        585,
+        70
+      ],
+      "depth_mm": 189.0,
+      "arm_coordinates": {
+        "x": 95.92488007149714,
+        "y": 184.77585572544524,
+        "z": 338.34443222676873
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": 0.0,
+        "z": 150.0
+      }
+    }
+  ]
+}
