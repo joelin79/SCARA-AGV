@@ -532,10 +532,14 @@ class ObjectDetectionSystem:
             Depth in millimeters (0 if invalid)
         """
         h, w = depth_image.shape
+        print("[_get_depth_at_point] Inputs:")
+        print(f"  requested (x, y) = ({x}, {y}), window_size = {window_size}")
+        print(f"  depth_image shape = (h={h}, w={w})")
         
         # Clamp coordinates
         x = max(0, min(x, w - 1))
         y = max(0, min(y, h - 1))
+        print(f"  clamped (x, y) = ({x}, {y})")
         
         # Extract window around point
         half_window = window_size // 2
@@ -543,13 +547,20 @@ class ObjectDetectionSystem:
         x2 = min(w, x + half_window + 1)
         y1 = max(0, y - half_window)
         y2 = min(h, y + half_window + 1)
+        print(f"  window bounds x:[{x1}, {x2}) y:[{y1}, {y2})")
         
         depth_window = depth_image[y1:y2, x1:x2]
         valid_depths = depth_window[depth_window > 0]
+        print(f"  window size = {depth_window.size}, valid count = {valid_depths.size}")
+        if valid_depths.size > 0:
+            print(f"  valid depths sample (up to 10): {valid_depths.flatten()[:10]}")
         
         if len(valid_depths) > 0:
-            return float(np.median(valid_depths))
+            median_depth = float(np.median(valid_depths))
+            print(f"  median(valid_depths) = {median_depth}")
+            return median_depth
         else:
+            print("  no valid depths; returning 0.0")
             return 0.0
     
     def _pixel_to_arm_coordinates(self, pixel_x: int, pixel_y: int, depth_mm: float,
@@ -575,21 +586,32 @@ class ObjectDetectionSystem:
             )
         ):
             # Use calibrated transformation when hand-eye or legacy extrinsics are available
-            return self.calibrator.pixel_to_arm_coordinates(pixel_x, pixel_y, depth_mm)
+            print("[_pixel_to_arm_coordinates] Using calibrator.pixel_to_arm_coordinates()")
+            print(f"  inputs: pixel=({pixel_x},{pixel_y}), depth_mm={depth_mm}")
+            result = self.calibrator.pixel_to_arm_coordinates(pixel_x, pixel_y, depth_mm)
+            print(f"  result (arm coords) = {result}")
+            return result
         else:
             # Use basic geometric transformation with yaw compensation from SCARA
             # This is a simplified version - assumes camera intrinsics
             # Typical RealSense D435i parameters (approximate)
             fx = fy = 615.0  # Approximate focal length for 640x480
             cx, cy = 320.0, 240.0  # Image center
+            print("[_pixel_to_arm_coordinates] Simplified path (no calibration):")
+            print(f"  fx=fy={fx}, cx={cx}, cy={cy}")
             
             # Convert to camera coordinates
             camera_x = (pixel_x - cx) * depth_mm / fx
             camera_y = (pixel_y - cy) * depth_mm / fy
             camera_z = depth_mm
+            print("  camera coordinates:")
+            print(f"    camera_x = (px - cx) * Z / fx = ({pixel_x} - {cx}) * {depth_mm} / {fx} = {camera_x}")
+            print(f"    camera_y = (py - cy) * Z / fy = ({pixel_y} - {cy}) * {depth_mm} / {fy} = {camera_y}")
+            print(f"    camera_z = Z = {camera_z}")
             
             # Transform to arm coordinates (simplified - assumes camera pointing down)
             cam_x, cam_y, cam_z = camera_position
+            print(f"  camera_position (arm frame) = ({cam_x}, {cam_y}, {cam_z})")
             
             # Compensate for camera yaw relative to base (rotation around Z)
             try:
@@ -597,12 +619,23 @@ class ObjectDetectionSystem:
             except Exception:
                 yaw_deg = 0.0
             yaw_rad = math.radians(yaw_deg)
-            world_dx = camera_x * math.cos(yaw_rad) - camera_y * math.sin(yaw_rad)
-            world_dy = camera_x * math.sin(yaw_rad) + camera_y * math.cos(yaw_rad)
+            cos_y = math.cos(yaw_rad)
+            sin_y = math.sin(yaw_rad)
+            world_dx = camera_x * cos_y - camera_y * sin_y
+            world_dy = camera_x * sin_y + camera_y * cos_y
+            print("  yaw compensation:")
+            print(f"    yaw_deg = {yaw_deg}, yaw_rad = {yaw_rad}")
+            print(f"    cos(yaw) = {cos_y}, sin(yaw) = {sin_y}")
+            print(f"    world_dx = camX*cos - camY*sin = {world_dx}")
+            print(f"    world_dy = camX*sin + camY*cos = {world_dy}")
             
             arm_x = cam_x + world_dx
             arm_y = cam_y + world_dy
             arm_z = cam_z - camera_z  # Camera pointing down
+            print("  final arm coordinates:")
+            print(f"    arm_x = cam_x + world_dx = {cam_x} + {world_dx} = {arm_x}")
+            print(f"    arm_y = cam_y + world_dy = {cam_y} + {world_dy} = {arm_y}")
+            print(f"    arm_z = cam_z - camera_z = {cam_z} - {camera_z} = {arm_z}")
             
             return (arm_x, arm_y, arm_z)
     

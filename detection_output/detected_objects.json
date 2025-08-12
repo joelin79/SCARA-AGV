@@ -1,7 +1,7 @@
 {
   "scan_metadata": {
-    "timestamp": "2025-08-08 15:09:38",
-    "total_objects": 2,
+    "timestamp": "2025-08-12 16:40:16",
+    "total_objects": 4,
     "scan_positions": 12,
     "model_path": "C:\\Users\\User\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
   },
@@ -9,22 +9,22 @@
     {
       "object_id": 0,
       "class_name": "Cube",
-      "confidence": 0.8817636370658875,
+      "confidence": 0.8952836394309998,
       "bbox": [
-        107,
-        234,
-        188,
-        312
+        137,
+        0,
+        217,
+        60
       ],
       "center_pixel": [
-        147,
-        273
+        177,
+        30
       ],
-      "depth_mm": 196.0,
+      "depth_mm": 191.0,
       "arm_coordinates": {
-        "x": 260.9890935705642,
-        "y": -55.97116206036816,
-        "z": 123.86249435675953
+        "x": 161.79651316809668,
+        "y": 306.39107870273625,
+        "z": 345.94681454210036
       },
       "camera_position": {
         "x": 250.0,
@@ -34,27 +34,79 @@
     },
     {
       "object_id": 1,
-      "class_name": "Partial",
-      "confidence": 0.8117465376853943,
+      "class_name": "Cube",
+      "confidence": 0.8854079246520996,
       "bbox": [
-        118,
-        0,
-        200,
-        10
+        431,
+        268,
+        511,
+        345
       ],
       "center_pixel": [
-        159,
-        5
+        471,
+        306
       ],
-      "depth_mm": 195.0,
+      "depth_mm": 192.0,
       "arm_coordinates": {
-        "x": 254.7086273407931,
-        "y": 29.899503152217733,
-        "z": 131.56727972093933
+        "x": 148.8608725396528,
+        "y": 113.46289203704153,
+        "z": 348.80302275040185
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -100.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 2,
+      "class_name": "Cube",
+      "confidence": 0.884739875793457,
+      "bbox": [
+        132,
+        291,
+        213,
+        368
+      ],
+      "center_pixel": [
+        172,
+        329
+      ],
+      "depth_mm": 194.0,
+      "arm_coordinates": {
+        "x": 255.72807321696152,
+        "y": 208.2528737715221,
+        "z": 358.5180950162337
       },
       "camera_position": {
         "x": 250.0,
-        "y": 100.0,
+        "y": -100.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 3,
+      "class_name": "Cube",
+      "confidence": 0.8511343002319336,
+      "bbox": [
+        429,
+        0,
+        509,
+        38
+      ],
+      "center_pixel": [
+        469,
+        19
+      ],
+      "depth_mm": 189.0,
+      "arm_coordinates": {
+        "x": 59.73381861121882,
+        "y": 215.2583483043843,
+        "z": 336.9836023724555
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": 0.0,
         "z": 150.0
       }
     }
