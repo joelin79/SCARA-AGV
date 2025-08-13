@@ -32,7 +32,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, Button, CheckButtons
+from matplotlib.widgets import Slider, Button, CheckButtons, TextBox
 import cv2
 
 # Optional file dialog for loading calibration at runtime
@@ -99,7 +99,7 @@ class HandEyeVisualizer:
     def __init__(self, calib_path: Optional[Path] = None):
         # Geometry
         self.L1 = 205.0
-        self.L2 = 205.0
+        self.L2 = 200.0
         self.extension_camera_length = 140.0  # purely for drawing the extension bar
 
         # Joint state (degrees, mm)
@@ -149,6 +149,16 @@ class HandEyeVisualizer:
         self.s_j3 = Slider(self.ax_s_j3, 'J3 (mm)', 0.0, 300.0, valinit=self.j3)
         self.s_j4 = Slider(self.ax_s_j4, 'J4 (deg)', -180.0, 180.0, valinit=self.j4)
 
+        # Text boxes for direct entry (aligned to the right of sliders)
+        self.ax_tb_j1 = plt.axes([0.91, 0.28, 0.07, 0.03], facecolor=axcolor)
+        self.ax_tb_j2 = plt.axes([0.91, 0.24, 0.07, 0.03], facecolor=axcolor)
+        self.ax_tb_j3 = plt.axes([0.91, 0.20, 0.07, 0.03], facecolor=axcolor)
+        self.ax_tb_j4 = plt.axes([0.91, 0.16, 0.07, 0.03], facecolor=axcolor)
+        self.tb_j1 = TextBox(self.ax_tb_j1, '', initial=f'{self.j1:.1f}')
+        self.tb_j2 = TextBox(self.ax_tb_j2, '', initial=f'{self.j2:.1f}')
+        self.tb_j3 = TextBox(self.ax_tb_j3, '', initial=f'{self.j3:.1f}')
+        self.tb_j4 = TextBox(self.ax_tb_j4, '', initial=f'{self.j4:.1f}')
+
         # Pixel and depth sliders
         self.ax_s_u = plt.axes([0.1, 0.12, 0.36, 0.03], facecolor=axcolor)
         self.ax_s_v = plt.axes([0.54, 0.12, 0.36, 0.03], facecolor=axcolor)
@@ -159,6 +169,14 @@ class HandEyeVisualizer:
         self.ax_s_depth = plt.axes([0.1, 0.08, 0.8, 0.03], facecolor=axcolor)
         self.s_depth = Slider(self.ax_s_depth, 'Depth (mm)', 50.0, 1200.0, valinit=500.0)
 
+        # Text boxes for pixel/depth entry (placed near sliders)
+        self.ax_tb_u = plt.axes([0.46, 0.12, 0.07, 0.03], facecolor=axcolor)
+        self.ax_tb_v = plt.axes([0.91, 0.12, 0.07, 0.03], facecolor=axcolor)
+        self.ax_tb_depth = plt.axes([0.91, 0.08, 0.07, 0.03], facecolor=axcolor)
+        self.tb_u = TextBox(self.ax_tb_u, '', initial=f'{u_init:.1f}')
+        self.tb_v = TextBox(self.ax_tb_v, '', initial=f'{v_init:.1f}')
+        self.tb_depth = TextBox(self.ax_tb_depth, '', initial=f'{self.s_depth.val:.1f}')
+
         self.s_j1.on_changed(self._on_slider)
         self.s_j2.on_changed(self._on_slider)
         self.s_j3.on_changed(self._on_slider)
@@ -166,6 +184,15 @@ class HandEyeVisualizer:
         self.s_u.on_changed(self._on_slider)
         self.s_v.on_changed(self._on_slider)
         self.s_depth.on_changed(self._on_slider)
+
+        # TextBox submit handlers
+        self.tb_j1.on_submit(lambda txt: self._on_textbox('j1', txt))
+        self.tb_j2.on_submit(lambda txt: self._on_textbox('j2', txt))
+        self.tb_j3.on_submit(lambda txt: self._on_textbox('j3', txt))
+        self.tb_j4.on_submit(lambda txt: self._on_textbox('j4', txt))
+        self.tb_u.on_submit(lambda txt: self._on_textbox('u', txt))
+        self.tb_v.on_submit(lambda txt: self._on_textbox('v', txt))
+        self.tb_depth.on_submit(lambda txt: self._on_textbox('depth', txt))
 
         # Buttons
         self.ax_btn_load = plt.axes([0.1, 0.02, 0.15, 0.04])
@@ -294,6 +321,12 @@ class HandEyeVisualizer:
             self.s_u.label.set_text(f'u (px) [0-{self.width-1}]')
             self.s_v.label.set_text(f'v (px) [0-{self.height-1}]')
             
+            # Update text boxes
+            if hasattr(self, 'tb_u'):
+                self.tb_u.set_val(f'{u_val:.1f}')
+            if hasattr(self, 'tb_v'):
+                self.tb_v.set_val(f'{v_val:.1f}')
+            
         except Exception as e:
             print(f"Error updating pixel sliders: {e}")
 
@@ -332,6 +365,35 @@ class HandEyeVisualizer:
         self.j3 = self.s_j3.val
         self.j4 = self.s_j4.val
         self._redraw()
+        self._update_textboxes()
+
+    def _on_textbox(self, which: str, text: str):
+        try:
+            val = float(text)
+        except Exception:
+            return
+        if which == 'j1':
+            val = max(-180.0, min(180.0, val))
+            self.s_j1.set_val(val)
+        elif which == 'j2':
+            val = max(-180.0, min(180.0, val))
+            self.s_j2.set_val(val)
+        elif which == 'j3':
+            val = max(0.0, min(300.0, val))
+            self.s_j3.set_val(val)
+        elif which == 'j4':
+            val = max(-180.0, min(180.0, val))
+            self.s_j4.set_val(val)
+        elif which == 'u':
+            val = max(0.0, min(float(self.width - 1), val))
+            self.s_u.set_val(val)
+        elif which == 'v':
+            val = max(0.0, min(float(self.height - 1), val))
+            self.s_v.set_val(val)
+        elif which == 'depth':
+            val = max(50.0, min(1200.0, val))
+            self.s_depth.set_val(val)
+        # sliders will trigger redraw and field sync
 
     def _on_reset_pose(self, evt):
         self.s_j1.reset()
