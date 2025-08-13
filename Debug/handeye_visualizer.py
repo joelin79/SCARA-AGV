@@ -32,7 +32,7 @@ from typing import Optional, Tuple
 
 import numpy as np
 import matplotlib.pyplot as plt
-from matplotlib.widgets import Slider, Button
+from matplotlib.widgets import Slider, Button, CheckButtons
 
 # Optional file dialog for loading calibration at runtime
 try:
@@ -112,6 +112,15 @@ class HandEyeVisualizer:
         self.t_ee2cam: Optional[np.ndarray] = None
         self.R_base_cam_static: Optional[np.ndarray] = None
         self.t_base_cam_static: Optional[np.ndarray] = None
+        # Intrinsics
+        self.fx: Optional[float] = None
+        self.fy: Optional[float] = None
+        self.cx: Optional[float] = None
+        self.cy: Optional[float] = None
+        self.camera_matrix: Optional[np.ndarray] = None
+        self.dist_coeffs: Optional[np.ndarray] = None
+        self.width: int = 640
+        self.height: int = 480
 
         if calib_path is not None:
             self.load_calibration(calib_path)
@@ -124,25 +133,38 @@ class HandEyeVisualizer:
         self.ax.set_ylabel('Y (mm)')
         self.ax.set_zlabel('Z (mm)')
 
-        # Layout for sliders
-        plt.subplots_adjust(left=0.1, bottom=0.28)
+        # Layout for sliders - adjusted to avoid overlaps
+        plt.subplots_adjust(left=0.1, bottom=0.35)
 
         # Sliders
         axcolor = 'lightgoldenrodyellow'
-        self.ax_s_j1 = plt.axes([0.1, 0.20, 0.8, 0.03], facecolor=axcolor)
-        self.ax_s_j2 = plt.axes([0.1, 0.16, 0.8, 0.03], facecolor=axcolor)
-        self.ax_s_j3 = plt.axes([0.1, 0.12, 0.8, 0.03], facecolor=axcolor)
-        self.ax_s_j4 = plt.axes([0.1, 0.08, 0.8, 0.03], facecolor=axcolor)
+        self.ax_s_j1 = plt.axes([0.1, 0.28, 0.8, 0.03], facecolor=axcolor)
+        self.ax_s_j2 = plt.axes([0.1, 0.24, 0.8, 0.03], facecolor=axcolor)
+        self.ax_s_j3 = plt.axes([0.1, 0.20, 0.8, 0.03], facecolor=axcolor)
+        self.ax_s_j4 = plt.axes([0.1, 0.16, 0.8, 0.03], facecolor=axcolor)
 
         self.s_j1 = Slider(self.ax_s_j1, 'J1 (deg)', -180.0, 180.0, valinit=self.j1)
         self.s_j2 = Slider(self.ax_s_j2, 'J2 (deg)', -180.0, 180.0, valinit=self.j2)
         self.s_j3 = Slider(self.ax_s_j3, 'J3 (mm)', 0.0, 300.0, valinit=self.j3)
         self.s_j4 = Slider(self.ax_s_j4, 'J4 (deg)', -180.0, 180.0, valinit=self.j4)
 
+        # Pixel and depth sliders
+        self.ax_s_u = plt.axes([0.1, 0.12, 0.36, 0.03], facecolor=axcolor)
+        self.ax_s_v = plt.axes([0.54, 0.12, 0.36, 0.03], facecolor=axcolor)
+        u_init = self.cx if self.cx is not None else (self.width - 1) / 2
+        v_init = self.cy if self.cy is not None else (self.height - 1) / 2
+        self.s_u = Slider(self.ax_s_u, 'u (px)', 0.0, float(self.width - 1), valinit=u_init)
+        self.s_v = Slider(self.ax_s_v, 'v (px)', 0.0, float(self.height - 1), valinit=v_init)
+        self.ax_s_depth = plt.axes([0.1, 0.08, 0.8, 0.03], facecolor=axcolor)
+        self.s_depth = Slider(self.ax_s_depth, 'Depth (mm)', 50.0, 1200.0, valinit=500.0)
+
         self.s_j1.on_changed(self._on_slider)
         self.s_j2.on_changed(self._on_slider)
         self.s_j3.on_changed(self._on_slider)
         self.s_j4.on_changed(self._on_slider)
+        self.s_u.on_changed(self._on_slider)
+        self.s_v.on_changed(self._on_slider)
+        self.s_depth.on_changed(self._on_slider)
 
         # Buttons
         self.ax_btn_load = plt.axes([0.1, 0.02, 0.15, 0.04])
@@ -157,6 +179,13 @@ class HandEyeVisualizer:
         self.btn_quit = Button(self.ax_btn_quit, 'Quit')
         self.btn_quit.on_clicked(lambda evt: plt.close(self.fig))
 
+        # Checkboxes for options
+        self.ax_checks = plt.axes([0.72, 0.30, 0.18, 0.07], facecolor=axcolor)
+        self.use_undistort = True
+        self.show_simplified = True
+        self.checks = CheckButtons(self.ax_checks, ['Undistort', 'Show simplified'], [self.use_undistort, self.show_simplified])
+        self.checks.on_clicked(self._on_checks)
+
         self._redraw()
 
     # ----- Calibration -----
@@ -167,6 +196,31 @@ class HandEyeVisualizer:
         except Exception as e:
             print(f"Failed to load calibration file: {e}")
             return
+
+        # intrinsics (optional but recommended)
+        intr = data.get('intrinsics', None)
+        if intr is not None:
+            try:
+                self.fx = float(intr.get('fx', self.fx if self.fx is not None else 606.0))
+                self.fy = float(intr.get('fy', self.fy if self.fy is not None else 606.0))
+                self.cx = float(intr.get('cx', self.cx if self.cx is not None else (intr.get('width', 640) - 1) / 2))
+                self.cy = float(intr.get('cy', self.cy if self.cy is not None else (intr.get('height', 480) - 1) / 2))
+                self.width = int(intr.get('width', self.width))
+                self.height = int(intr.get('height', self.height))
+            except Exception as e:
+                print(f"Invalid intrinsics block: {e}")
+
+        # camera_matrix and distortion (optional)
+        if 'camera_matrix' in data:
+            try:
+                self.camera_matrix = np.array(data['camera_matrix'], dtype=float)
+            except Exception as e:
+                print(f"Invalid camera_matrix: {e}")
+        if 'dist_coeffs' in data:
+            try:
+                self.dist_coeffs = np.array(data['dist_coeffs'], dtype=float)
+            except Exception as e:
+                print(f"Invalid dist_coeffs: {e}")
 
         # handeye preferred
         he = data.get('handeye', None)
@@ -212,6 +266,35 @@ class HandEyeVisualizer:
                     print('Loaded static extrinsics (Base->Cam) from calibration file')
             except Exception as e:
                 print(f"Invalid extrinsics block: {e}")
+
+        # Update pixel slider ranges to match new image dimensions
+        self._update_pixel_sliders()
+
+    def _update_pixel_sliders(self):
+        """Update pixel slider ranges and values based on current image dimensions"""
+        try:
+            # Update slider ranges
+            self.s_u.valmax = float(self.width - 1)
+            self.s_v.valmax = float(self.height - 1)
+            
+            # Update current values if they're out of range
+            u_val = self.s_u.val
+            v_val = self.s_v.val
+            
+            if u_val > self.width - 1:
+                u_val = self.cx if self.cx is not None else (self.width - 1) / 2
+            if v_val > self.height - 1:
+                v_val = self.cy if self.cy is not None else (self.height - 1) / 2
+                
+            self.s_u.set_val(u_val)
+            self.s_v.set_val(v_val)
+            
+            # Update slider labels
+            self.s_u.label.set_text(f'u (px) [0-{self.width-1}]')
+            self.s_v.label.set_text(f'v (px) [0-{self.height-1}]')
+            
+        except Exception as e:
+            print(f"Error updating pixel sliders: {e}")
 
     # ----- Kinematics and poses -----
     def _fk_xy(self, j1_deg: float, j2_deg: float) -> Tuple[float, float]:
@@ -274,6 +357,13 @@ class HandEyeVisualizer:
         self.load_calibration(Path(path))
         self._redraw()
 
+    def _on_checks(self, label):
+        if label == 'Undistort':
+            self.use_undistort = not self.use_undistort
+        elif label == 'Show simplified':
+            self.show_simplified = not self.show_simplified
+        self._redraw()
+
     # ----- Drawing -----
     def _redraw(self):
         self.ax.cla()
@@ -318,6 +408,62 @@ class HandEyeVisualizer:
             # Connector line from EE to Cam for visualizing offset
             self.ax.plot([t_be[0], t_bc[0]], [t_be[1], t_bc[1]], [t_be[2], t_bc[2]], linestyle='--', color='#ff8888', alpha=0.6)
 
+            # Compute and draw pixel ray and transformed point(s)
+            u = float(self.s_u.val)
+            v = float(self.s_v.val)
+            Z = float(self.s_depth.val)
+            # Camera-space direction and point at depth Z
+            if self.use_undistort and self.camera_matrix is not None and self.dist_coeffs is not None:
+                pts = np.array([[[u, v]]], dtype=np.float32)
+                try:
+                    und = np.squeeze(cv2.undistortPoints(pts, self.camera_matrix, self.dist_coeffs, P=None))
+                    x_norm = float(und[0]); y_norm = float(und[1])
+                except Exception:
+                    # fallback pinhole
+                    x_norm = (u - (self.cx if self.cx is not None else (self.width - 1) / 2.0)) / (self.fx if self.fx is not None else 606.0)
+                    y_norm = (v - (self.cy if self.cy is not None else (self.height - 1) / 2.0)) / (self.fy if self.fy is not None else 606.0)
+            else:
+                x_norm = (u - (self.cx if self.cx is not None else (self.width - 1) / 2.0)) / (self.fx if self.fx is not None else 606.0)
+                y_norm = (v - (self.cy if self.cy is not None else (self.height - 1) / 2.0)) / (self.fy if self.fy is not None else 606.0)
+
+            cam_dir = np.array([x_norm, y_norm, 1.0], dtype=float)
+            cam_dir = cam_dir / np.linalg.norm(cam_dir)
+            cam_point = cam_dir * Z
+
+            # Draw the ray from camera origin to a point beyond the chosen depth
+            p0 = t_bc
+            pZ = t_bc + R_bc @ cam_point
+            p_far = t_bc + R_bc @ (cam_dir * (Z * 1.5))
+            self.ax.plot([p0[0], p_far[0]], [p0[1], p_far[1]], [p0[2], p_far[2]], color='#00aaee', lw=1.5, alpha=0.9)
+            self.ax.scatter([pZ[0]], [pZ[1]], [pZ[2]], color='#0077cc', s=30, label='Cam-space point @Z')
+
+            # Calibrated/base point using hand-eye or static extrinsics:
+            # In our coordinate convention, pZ is already base-frame because we applied R_bc,t_bc
+            # So we simply report it as calibrated point
+            calibrated_point = pZ
+            self.ax.scatter([calibrated_point[0]], [calibrated_point[1]], [calibrated_point[2]], color='#00cc44', s=45, label='Arm point (calibrated)')
+
+            # Simplified mapping (ObjectDetection fallback)
+            if self.show_simplified:
+                yaw_deg = self.j1 + self.j2 + self.j4
+                yaw_rad = deg2rad(yaw_deg)
+                fx = self.fx if self.fx is not None else 615.0
+                fy = self.fy if self.fy is not None else 615.0
+                cx = self.cx if self.cx is not None else 320.0
+                cy = self.cy if self.cy is not None else 240.0
+                cam_x = (u - cx) * Z / fx
+                cam_y = (v - cy) * Z / fy
+                cam_z = Z
+                cos_yaw = math.cos(yaw_rad)
+                sin_yaw = math.sin(yaw_rad)
+                world_dx = cam_x * cos_yaw - cam_y * sin_yaw
+                world_dy = cam_x * sin_yaw + cam_y * cos_yaw
+                arm_x = t_bc[0] + world_dx
+                arm_y = t_bc[1] + world_dy
+                arm_z = t_bc[2] - cam_z
+                simplified_point = np.array([arm_x, arm_y, arm_z], dtype=float)
+                self.ax.scatter([simplified_point[0]], [simplified_point[1]], [simplified_point[2]], color='#ff9900', s=45, label='Arm point (simplified)')
+
         # Cosmetic: base reach circle at Z=0
         theta = np.linspace(0, 2*np.pi, 200)
         max_reach = self.L1 + self.L2 + self.extension_camera_length
@@ -340,7 +486,10 @@ class HandEyeVisualizer:
             info.append("handeye: yes")
         if self.R_base_cam_static is not None:
             info.append("extrinsics: yes")
+        info.append(f"u={float(self.s_u.val):.1f}, v={float(self.s_v.val):.1f}, Z={float(self.s_depth.val):.0f}mm")
+        info.append(f"undistort={'on' if self.use_undistort else 'off'} | simplified={'on' if self.show_simplified else 'off'}")
         self.ax.text2D(0.02, 0.98, " | ".join(info), transform=self.ax.transAxes)
+        self.ax.legend(loc='upper right')
 
         plt.draw()
 
