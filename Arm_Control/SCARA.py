@@ -37,7 +37,7 @@ CUR_J3 = ORIGIN_J3
 CUR_J4 = ORIGIN_J4
 
 LENGTH_J1 = 205
-LENGTH_J2 = 205
+LENGTH_J2 = 200
 LENGTH_J3 = 200
 
 # Extension arm dimensions (from J4 center)
