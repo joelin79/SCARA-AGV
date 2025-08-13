@@ -134,7 +134,7 @@ class HandEyeVisualizer:
         self.ax.set_zlabel('Z (mm)')
 
         # Layout for sliders - adjusted to avoid overlaps
-        plt.subplots_adjust(left=0.1, bottom=0.35)
+        plt.subplots_adjust(left=0.1, bottom=0.35, right=0.78)
 
         # Sliders
         axcolor = 'lightgoldenrodyellow'
@@ -372,6 +372,10 @@ class HandEyeVisualizer:
         self.ax.set_ylabel('Y (mm)')
         self.ax.set_zlabel('Z (mm)')
 
+        # Prepare holders so we can show coordinates later even if some branches skip
+        calibrated_point = None
+        simplified_point = None
+        
         # Draw base axes at origin
         draw_axes(self.ax, np.eye(3), np.zeros(3), length=50.0, linewidth=2.5, alpha=0.9, label='Base')
 
@@ -489,8 +493,13 @@ class HandEyeVisualizer:
         info.append(f"u={float(self.s_u.val):.1f}, v={float(self.s_v.val):.1f}, Z={float(self.s_depth.val):.0f}mm")
         info.append(f"undistort={'on' if self.use_undistort else 'off'} | simplified={'on' if self.show_simplified else 'off'}")
         self.ax.text2D(0.02, 0.98, " | ".join(info), transform=self.ax.transAxes)
-        self.ax.legend(loc='upper right')
-
+        # Coordinate readouts for points
+        if calibrated_point is not None:
+            self.ax.text2D(0.02, 0.94, f"calib=({calibrated_point[0]:.1f}, {calibrated_point[1]:.1f}, {calibrated_point[2]:.1f}) mm", transform=self.ax.transAxes, color='#00aa44')
+        if simplified_point is not None:
+            self.ax.text2D(0.02, 0.90, f"simpl=({simplified_point[0]:.1f}, {simplified_point[1]:.1f}, {simplified_point[2]:.1f}) mm", transform=self.ax.transAxes, color='#ff8800')
+        self.ax.legend(loc='center left', bbox_to_anchor=(1.18, 0.5), borderaxespad=0.0, frameon=True)
+        
         plt.draw()
 
     # ----- Main loop -----
