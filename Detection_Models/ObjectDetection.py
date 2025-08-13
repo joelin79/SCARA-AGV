@@ -601,11 +601,12 @@ class ObjectDetectionSystem:
             print(f"  fx=fy={fx}, cx={cx}, cy={cy}")
             
             # Convert to camera coordinates
-            camera_x = (pixel_x - cx) * depth_mm / fx
+            # Reflect X to match runtime convention
+            camera_x = - (pixel_x - cx) * depth_mm / fx
             camera_y = (pixel_y - cy) * depth_mm / fy
             camera_z = depth_mm
             print("  camera coordinates:")
-            print(f"    camera_x = (px - cx) * Z / fx = ({pixel_x} - {cx}) * {depth_mm} / {fx} = {camera_x}")
+            print(f"    camera_x = -(px - cx) * Z / fx = -({pixel_x} - {cx}) * {depth_mm} / {fx} = {camera_x}")
             print(f"    camera_y = (py - cy) * Z / fy = ({pixel_y} - {cy}) * {depth_mm} / {fy} = {camera_y}")
             print(f"    camera_z = Z = {camera_z}")
             

@@ -676,20 +676,22 @@ class CameraCalibrator:
                 print("[pixel_to_arm_coordinates] Undistortion path:")
                 print(f"  original pixel = ({pixel_x:.3f}, {pixel_y:.3f})")
                 print(f"  undistorted normalized = ({x_norm:.6f}, {y_norm:.6f})")
-                camera_x = x_norm * depth_mm
+                # Reflect X to match runtime convention
+                camera_x = -x_norm * depth_mm
                 camera_y = y_norm * depth_mm
                 camera_z = depth_mm
             else:
-                camera_x = (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
+                # Reflect X to match runtime convention
+                camera_x = - (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
                 camera_y = (pixel_y - self.intrinsics.cy) * depth_mm / self.intrinsics.fy
                 camera_z = depth_mm
                 print("[pixel_to_arm_coordinates] Pinhole path (no undistortion available):")
-                print(f"  camera_x = (px - cx) * Z / fx = ({pixel_x} - {self.intrinsics.cx}) * {depth_mm} / {self.intrinsics.fx} = {camera_x}")
+                print(f"  camera_x = -(px - cx) * Z / fx = -({pixel_x} - {self.intrinsics.cx}) * {depth_mm} / {self.intrinsics.fx} = {camera_x}")
                 print(f"  camera_y = (py - cy) * Z / fy = ({pixel_y} - {self.intrinsics.cy}) * {depth_mm} / {self.intrinsics.fy} = {camera_y}")
                 print(f"  camera_z = Z = {camera_z}")
         except Exception as e:
             print(f"[pixel_to_arm_coordinates] Undistortion calculation failed: {e}. Falling back to pinhole model")
-            camera_x = (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
+            camera_x = - (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
             camera_y = (pixel_y - self.intrinsics.cy) * depth_mm / self.intrinsics.fy
             camera_z = depth_mm
 

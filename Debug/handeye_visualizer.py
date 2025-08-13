@@ -33,6 +33,7 @@ from typing import Optional, Tuple
 import numpy as np
 import matplotlib.pyplot as plt
 from matplotlib.widgets import Slider, Button, CheckButtons
+import cv2
 
 # Optional file dialog for loading calibration at runtime
 try:
@@ -408,7 +409,10 @@ class HandEyeVisualizer:
         cam_pose = self.current_cam_pose()
         if cam_pose is not None:
             R_bc, t_bc = cam_pose
-            draw_axes(self.ax, R_bc, t_bc, length=35.0, linewidth=2.0, alpha=0.9, label='Cam')
+            # Apply a reflection on camera X to match runtime convention (flip X only)
+            C_reflect_x = np.diag([-1.0, 1.0, 1.0])
+            R_cam_draw = R_bc @ C_reflect_x
+            draw_axes(self.ax, R_cam_draw, t_bc, length=35.0, linewidth=2.0, alpha=0.9, label='Cam')
             # Connector line from EE to Cam for visualizing offset
             self.ax.plot([t_be[0], t_bc[0]], [t_be[1], t_bc[1]], [t_be[2], t_bc[2]], linestyle='--', color='#ff8888', alpha=0.6)
 
@@ -430,14 +434,19 @@ class HandEyeVisualizer:
                 x_norm = (u - (self.cx if self.cx is not None else (self.width - 1) / 2.0)) / (self.fx if self.fx is not None else 606.0)
                 y_norm = (v - (self.cy if self.cy is not None else (self.height - 1) / 2.0)) / (self.fy if self.fy is not None else 606.0)
 
-            cam_dir = np.array([x_norm, y_norm, 1.0], dtype=float)
-            cam_dir = cam_dir / np.linalg.norm(cam_dir)
-            cam_point = cam_dir * Z
+            # Consistent with calibration: camera_point = Z * [x_norm, y_norm, 1]
+            cam_point = np.array([x_norm * Z, y_norm * Z, Z], dtype=float)
+            # For drawing the ray only, use a normalized direction
+            ray_dir = np.array([x_norm, y_norm, 1.0], dtype=float)
+            ray_dir = ray_dir / np.linalg.norm(ray_dir)
+            # Apply reflection of camera X for both point and ray to keep consistency
+            cam_point = C_reflect_x @ cam_point
+            ray_dir = C_reflect_x @ ray_dir
 
             # Draw the ray from camera origin to a point beyond the chosen depth
             p0 = t_bc
             pZ = t_bc + R_bc @ cam_point
-            p_far = t_bc + R_bc @ (cam_dir * (Z * 1.5))
+            p_far = t_bc + R_bc @ (ray_dir * (Z * 1.5))
             self.ax.plot([p0[0], p_far[0]], [p0[1], p_far[1]], [p0[2], p_far[2]], color='#00aaee', lw=1.5, alpha=0.9)
             self.ax.scatter([pZ[0]], [pZ[1]], [pZ[2]], color='#0077cc', s=30, label='Cam-space point @Z')
 
@@ -449,13 +458,14 @@ class HandEyeVisualizer:
 
             # Simplified mapping (ObjectDetection fallback)
             if self.show_simplified:
-                yaw_deg = self.j1 + self.j2 + self.j4
-                yaw_rad = deg2rad(yaw_deg)
+                # Use reflected camera yaw from pose for consistency
+                yaw_rad = math.atan2(R_cam_draw[1, 0], R_cam_draw[0, 0])
                 fx = self.fx if self.fx is not None else 615.0
                 fy = self.fy if self.fy is not None else 615.0
                 cx = self.cx if self.cx is not None else 320.0
                 cy = self.cy if self.cy is not None else 240.0
-                cam_x = (u - cx) * Z / fx
+                # Reflect camera X to match convention
+                cam_x = -(u - cx) * Z / fx
                 cam_y = (v - cy) * Z / fy
                 cam_z = Z
                 cos_yaw = math.cos(yaw_rad)
