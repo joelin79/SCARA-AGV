@@ -17,8 +17,6 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
-from Arm_Control.SCARA import ORIGIN_Z
-
 # Add project directories to path
 current_dir = Path(__file__).parent
 project_root = current_dir.parent
@@ -26,14 +24,16 @@ sys.path.append(str(project_root))
 sys.path.append(str(project_root / "Arm_Control"))
 sys.path.append(str(project_root / "RealSense"))
 
-# Import project modules
+
+# Import project modules (lazy where needed to avoid serial on import)
 try:
-    import Arm_Control.SCARA as scara_control
     from RealSense.realsense_depth import DepthCamera
-    from RealSense.camera_calibration import CameraCalibrator
 except ImportError as e:
-    print(f"Warning: Could not import modules: {e}")
-    scara_control = None
+    print(f"Warning: Could not import DepthCamera: {e}")
+    DepthCamera = None  # type: ignore
+
+# Lazy SCARA/Calibrator import to avoid opening serial on module import
+scara_control = None
 
 # Import YOLO
 try:
@@ -100,6 +100,8 @@ class ObjectDetectionSystem:
         # Initialize camera
         try:
             print("Initializing RealSense camera...")
+            if DepthCamera is None:
+                raise ImportError("DepthCamera unavailable")
             self.camera = DepthCamera()
             print("✓ Camera initialized successfully")
         except Exception as e:
@@ -110,6 +112,7 @@ class ObjectDetectionSystem:
         if self.use_calibration:
             try:
                 print("Loading camera calibration from factory file...")
+                from RealSense.camera_calibration import CameraCalibrator
                 self.calibrator = CameraCalibrator()
                 calibration_file = project_root / "RealSense" / "camera_calibration" / "camera_calibration_factory.json"
                 if self.calibrator.load_calibration(calibration_file):
@@ -576,69 +579,221 @@ class ObjectDetectionSystem:
         Returns:
             (x, y, z) in arm coordinate system
         """
+        # Compute intrinsics and normalized pixel like the visualizer
+        fx = fy = 606.0
+        cx = cy = 0.0
+        have_intr = self.calibrator is not None and getattr(self.calibrator, "intrinsics", None) is not None
+        if have_intr:
+            fx = float(self.calibrator.intrinsics.fx)
+            fy = float(self.calibrator.intrinsics.fy)
+            cx = float(self.calibrator.intrinsics.cx)
+            cy = float(self.calibrator.intrinsics.cy)
+            print("Intrinsic Loaded @591")
+        else:
+            cx = 320.0
+            cy = 240.0
+        
+        x_norm = y_norm = 0.0
         if (
             self.use_calibration
-            and self.calibrator
-            and self.calibrator.intrinsics
-            and (
-                getattr(self.calibrator, "handeye_R_ee2cam", None) is not None
-                or getattr(self.calibrator, "extrinsics", None) is not None
-            )
+            and self.calibrator is not None
+            and getattr(self.calibrator, "camera_matrix", None) is not None
+            and getattr(self.calibrator, "dist_coeffs", None) is not None
         ):
-            # Use calibrated transformation when hand-eye or legacy extrinsics are available
-            print("[_pixel_to_arm_coordinates] Using calibrator.pixel_to_arm_coordinates()")
-            print(f"  inputs: pixel=({pixel_x},{pixel_y}), depth_mm={depth_mm}")
-            result = self.calibrator.pixel_to_arm_coordinates(pixel_x, pixel_y, depth_mm)
-            print(f"  result (arm coords) = {result}")
-            return result
-        else:
-            # Use basic geometric transformation with yaw compensation from SCARA
-            # This is a simplified version - assumes camera intrinsics
-            # Typical RealSense D435i parameters (approximate)
-            fx = fy = 615.0  # Approximate focal length for 640x480
-            cx, cy = 320.0, 240.0  # Image center
-            print("[_pixel_to_arm_coordinates] Simplified path (no calibration):")
-            print(f"  fx=fy={fx}, cx={cx}, cy={cy}")
-            
-            # Convert to camera coordinates
-            # Reflect X to match runtime convention
-            camera_x = - (pixel_x - cx) * depth_mm / fx
-            camera_y = (pixel_y - cy) * depth_mm / fy
-            camera_z = depth_mm
-            print("  camera coordinates:")
-            print(f"    camera_x = -(px - cx) * Z / fx = -({pixel_x} - {cx}) * {depth_mm} / {fx} = {camera_x}")
-            print(f"    camera_y = (py - cy) * Z / fy = ({pixel_y} - {cy}) * {depth_mm} / {fy} = {camera_y}")
-            print(f"    camera_z = Z = {camera_z}")
-            
-            # Transform to arm coordinates (simplified - assumes camera pointing down)
-            cam_x, cam_y, cam_z = camera_position
-            print(f"  camera_position (arm frame) = ({cam_x}, {cam_y}, {cam_z})")
-            
-            # Compensate for camera yaw relative to base (rotation around Z)
             try:
-                yaw_deg = scara_control.get_camera_direction() if scara_control is not None else 0.0
+                pts = np.array([[[float(pixel_x), float(pixel_y)]]], dtype=np.float32)
+                und = cv2.undistortPoints(pts, self.calibrator.camera_matrix, self.calibrator.dist_coeffs, P=None)
+                x_norm = float(und[0, 0, 0])        # und[0,0] = undistorted pts (x,y)
+                y_norm = float(und[0, 0, 1])
             except Exception:
+                x_norm = (float(pixel_x) - cx) / fx
+                y_norm = (float(pixel_y) - cy) / fy
+        else:
+            x_norm = (float(pixel_x) - cx) / fx
+            y_norm = (float(pixel_y) - cy) / fy
+        
+        # Form camera-space point at depth and reflect camera X (match visualizer)
+        cam_point = np.array([x_norm * depth_mm, y_norm * depth_mm, depth_mm], dtype=float)
+        cam_point = np.diag([-1.0, 1.0, 1.0]) @ cam_point
+        
+        # Determine R_bc and t_bc per visualizer
+        R_bc = None
+        t_bc = None
+        handeye_ok = (self.use_calibration and self.calibrator is not None and getattr(self.calibrator, "handeye_R_ee2cam", None) is not None and getattr(self.calibrator, "handeye_t_ee2cam", None) is not None)
+        extr_ok = (self.use_calibration and self.calibrator is not None and getattr(self.calibrator, "extrinsics", None) is not None)
+        
+        if handeye_ok:
+            try:
+                # Build R_be using the same yaw convention as the visualizer (J1+J2+J4)
                 yaw_deg = 0.0
-            yaw_rad = math.radians(yaw_deg)
-            cos_y = math.cos(yaw_rad)
-            sin_y = math.sin(yaw_rad)
-            world_dx = camera_x * cos_y - camera_y * sin_y
-            world_dy = camera_x * sin_y + camera_y * cos_y
-            print("  yaw compensation:")
-            print(f"    yaw_deg = {yaw_deg}, yaw_rad = {yaw_rad}")
-            print(f"    cos(yaw) = {cos_y}, sin(yaw) = {sin_y}")
-            print(f"    world_dx = camX*cos - camY*sin = {world_dx}")
-            print(f"    world_dy = camX*sin + camY*cos = {world_dy}")
+                t_be = None
+                if scara_control is not None:
+                    try:
+                        # If SCARA exposes current joints and EE pose, use them
+                        yaw_deg = float(scara_control.CUR_J1 + scara_control.CUR_J2 + scara_control.CUR_J4)
+                        t_be = np.array([float(scara_control.CUR_X), float(scara_control.CUR_Y), float(scara_control.CUR_Z)], dtype=float)
+                    except Exception:
+                        # Fallback to camera_direction for yaw only
+                        try:
+                            yaw_deg = float(scara_control.get_camera_direction())
+                        except Exception:
+                            yaw_deg = 0.0
+                theta = math.radians(yaw_deg)
+                R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
+                                 [math.sin(theta),  math.cos(theta), 0.0],
+                                 [0.0,              0.0,             1.0]], dtype=float)
+                R_bc = R_be @ self.calibrator.handeye_R_ee2cam  # MARK: Axis correction is included in the calibrator
+                # Compose translation per visualizer: t_bc = R_be @ t_ee2cam + t_be
+                if t_be is None:
+                    # If we don't have EE pose, fall back to the provided camera_position
+                    t_bc = np.array([float(camera_position[0]), float(camera_position[1]), float(camera_position[2])], dtype=float)
+                else:
+                    t_ee2cam = self.calibrator.handeye_t_ee2cam # MARK: Axis correction is included in the calibrator
+                    t_bc = R_be @ t_ee2cam + t_be
+            except Exception:
+                R_bc = None
+        if R_bc is None and extr_ok:
+            R_bc = self.calibrator.extrinsics.rotation_matrix
+            t_bc = self.calibrator.extrinsics.translation_vector
+        
+        if R_bc is not None and t_bc is not None:
+            arm_point = t_bc + R_bc @ cam_point
+            return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
+        
+        # Fallback (no calibration): simplified yaw mapping, reflect X already done above
+        cam_x, cam_y, cam_z = camera_position
+        try:
+            yaw_deg = scara_control.get_camera_direction() if scara_control is not None else 0.0
+        except Exception:
+            yaw_deg = 0.0
+        yaw_rad = math.radians(yaw_deg)
+        cos_y = math.cos(yaw_rad)
+        sin_y = math.sin(yaw_rad)
+        world_dx = (cam_point[0]) * cos_y - (cam_point[1]) * sin_y
+        world_dy = (cam_point[0]) * sin_y + (cam_point[1]) * cos_y
+        arm_x = cam_x + world_dx
+        arm_y = cam_y + world_dy
+        arm_z = cam_z - cam_point[2]
+        return (float(arm_x), float(arm_y), float(arm_z))
+
+    def debug_pixel_to_arm_coordinates(self,
+                                       j1_deg: float,
+                                       j2_deg: float,
+                                       j3_mm: float,
+                                       j4_deg: float,
+                                       camera_position: Tuple[float, float, float],
+                                       pixel_x: int,
+                                       pixel_y: int,
+                                       depth_mm: float,
+                                       use_calibration: Optional[bool] = None,
+                                       use_undistort: bool = True) -> Tuple[float, float, float]:
+        """
+        Debug helper: project a pixel at a given depth to arm coordinates, using provided arm state.
+        - If calibration is available and enabled, uses hand-eye (preferred) or static extrinsics.
+        - Otherwise, falls back to simplified yaw-only mapping (matches _pixel_to_arm_coordinates fallback).
+        
+        Args:
+            j1_deg, j2_deg, j3_mm, j4_deg: Current arm joint values (degrees, degrees, mm, degrees)
+            camera_position: (cam_x, cam_y, cam_z) in arm/base frame (mm)
+            pixel_x, pixel_y: Pixel coordinates
+            depth_mm: Depth in millimeters at that pixel
+            use_calibration: Force enable/disable calibration path (default: follow self.use_calibration)
+            use_undistort: If True and intrinsics/distortion are available, undistort the pixel
+        
+        Returns:
+            (arm_x, arm_y, arm_z) in millimeters
+        """
+        try:
+            # Decide calibration usage
+            use_calib = self.use_calibration if use_calibration is None else use_calibration
+            has_intr = (self.calibrator is not None and getattr(self.calibrator, "intrinsics", None) is not None)
+            has_handeye = (
+                self.calibrator is not None
+                and getattr(self.calibrator, "handeye_R_ee2cam", None) is not None
+                and getattr(self.calibrator, "handeye_t_ee2cam", None) is not None
+            )
+            has_extrinsics = (self.calibrator is not None and getattr(self.calibrator, "extrinsics", None) is not None)
             
-            arm_x = cam_x + world_dx
-            arm_y = cam_y + world_dy
-            arm_z = cam_z - camera_z  # Camera pointing down
-            print("  final arm coordinates:")
-            print(f"    arm_x = cam_x + world_dx = {cam_x} + {world_dx} = {arm_x}")
-            print(f"    arm_y = cam_y + world_dy = {cam_y} + {world_dy} = {arm_y}")
-            print(f"    arm_z = cam_z - camera_z = {cam_z} - {camera_z} = {arm_z}")
+            # Intrinsics for back-projection
+            if has_intr:
+                fx = float(self.calibrator.intrinsics.fx)
+                fy = float(self.calibrator.intrinsics.fy)
+                cx = float(self.calibrator.intrinsics.cx)
+                cy = float(self.calibrator.intrinsics.cy)
+            else:
+                fx = fy = 615.0
+                cx, cy = 320.0, 240.0
             
-            return (arm_x, arm_y, arm_z)
+            # Back-project pixel to camera coordinates (reflect X to match runtime convention)
+            if (
+                use_undistort
+                and has_intr
+                and getattr(self.calibrator, "camera_matrix", None) is not None
+                and getattr(self.calibrator, "dist_coeffs", None) is not None
+            ):
+                pts = np.array([[[float(pixel_x), float(pixel_y)]]], dtype=np.float32)
+                try:
+                    und = cv2.undistortPoints(pts, self.calibrator.camera_matrix, self.calibrator.dist_coeffs, P=None)
+                    x_norm = float(und[0, 0, 0])
+                    y_norm = float(und[0, 0, 1])
+                    cam_x = -x_norm * depth_mm
+                    cam_y = y_norm * depth_mm
+                    cam_z = depth_mm
+                except Exception:
+                    cam_x = - (pixel_x - cx) * depth_mm / fx
+                    cam_y = (pixel_y - cy) * depth_mm / fy
+                    cam_z = depth_mm
+            else:
+                cam_x = - (pixel_x - cx) * depth_mm / fx
+                cam_y = (pixel_y - cy) * depth_mm / fy
+                cam_z = depth_mm
+            camera_point = np.array([cam_x, cam_y, cam_z], dtype=float)
+            
+            cam_tx, cam_ty, cam_tz = camera_position
+            t_bc = np.array([cam_tx, cam_ty, cam_tz], dtype=float)
+            
+            # If we can build a full R_bc, do so; otherwise use simplified yaw-only mapping
+            if use_calib and (has_handeye or has_extrinsics):
+                if has_handeye:
+                    theta = math.radians(j1_deg + j2_deg + j4_deg)
+                    R_be = np.array([
+                        [math.cos(theta), -math.sin(theta), 0.0],
+                        [math.sin(theta),  math.cos(theta), 0.0],
+                        [0.0,              0.0,             1.0]
+                    ], dtype=float)
+                    R_ee2cam = self.calibrator.handeye_R_ee2cam
+                    t_ee2cam = self.calibrator.handeye_t_ee2cam
+                    R_bc = R_be @ R_ee2cam
+                    # Prefer composed translation if hand-eye is available and arm pose is provided
+                    t_bc_full = R_be @ t_ee2cam + np.array([
+                        # EE translation t_be from j1,j2,j3
+                        self._fk_xy(j1_deg, j2_deg)[0],
+                        self._fk_xy(j1_deg, j2_deg)[1],
+                        j3_mm
+                    ], dtype=float)
+                    # Use provided camera_position only if it matches the composed one; otherwise use composed
+                    t_bc_use = t_bc_full
+                else:
+                    # Static extrinsics path: rotation from extrinsics, but translation from provided camera_position
+                    R_bc = self.calibrator.extrinsics.rotation_matrix
+                    t_bc_use = t_bc
+
+                arm_point = R_bc @ camera_point + t_bc_use
+                return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
+            else:
+                # Simplified yaw-only mapping (camera assumed pointing down)
+                yaw_rad = math.radians(j1_deg + j2_deg + j4_deg)
+                cos_yaw = math.cos(yaw_rad)
+                sin_yaw = math.sin(yaw_rad)
+                world_dx = cam_x * cos_yaw - cam_y * sin_yaw
+                world_dy = cam_x * sin_yaw + cam_y * cos_yaw
+                arm_x = cam_tx + world_dx
+                arm_y = cam_ty + world_dy
+                arm_z = cam_tz - cam_z
+                return float(arm_x), float(arm_y), float(arm_z)
+        except Exception as e:
+            print(f"[debug_pixel_to_arm_coordinates] Error: {e}")
+            return 0.0, 0.0, 0.0
     
     def _filter_duplicate_objects(self, distance_threshold: float = 30.0):
         """
@@ -856,6 +1011,93 @@ class ObjectDetectionSystem:
         if self.camera:
             self.camera.release()
         print("Object detection system cleaned up")
+
+
+def debug_pixel_to_arm_coordinates(j1_deg: float,
+                                   j2_deg: float,
+                                   j3_mm: float,
+                                   j4_deg: float,
+                                   camera_position: Tuple[float, float, float],
+                                   pixel_x: int,
+                                   pixel_y: int,
+                                   depth_mm: float,
+                                   use_calibration: Optional[bool] = None,
+                                   use_undistort: bool = True) -> Tuple[float, float, float]:
+    """
+    Debug helper that mirrors the visualizer’s calibrated flow exactly.
+    Requires calibration (intrinsics + hand-eye). No SCARA API calls.
+
+    Steps:
+      1) Undistort pixel if possible; else pinhole intrinsics
+      2) cam_point = [x_norm*Z, y_norm*Z, Z]; then reflect X via diag([-1,1,1])
+      3) R_be from yaw = j1+j2+j4 (deg)
+      4) R_bc = R_be @ R_ee2cam
+      5) t_bc = camera_position (base->cam translation)
+      6) arm_point = t_bc + R_bc @ cam_point
+    """
+    # Build a minimal system holder to reuse loaded calibration
+    system = ObjectDetectionSystem(use_calibration=True, save_images=False)
+    try:
+        from RealSense.camera_calibration import CameraCalibrator
+        system.calibrator = CameraCalibrator()
+        calib_file = project_root / "RealSense" / "camera_calibration" / "camera_calibration.json"
+        if not system.calibrator.load_calibration(calib_file):
+            raise RuntimeError("Calibration not available")
+    except Exception as e:
+        raise RuntimeError(f"Calibration load failed: {e}")
+
+    if use_calibration is False:
+        raise RuntimeError("This debug function requires calibrated flow (use_calibration=True)")
+
+    calib = system.calibrator
+    if calib is None or getattr(calib, "handeye_R_ee2cam", None) is None or getattr(calib, "handeye_t_ee2cam", None) is None:
+        raise RuntimeError("Hand-eye not available in calibration")
+
+    # 1) Intrinsics / normalized pixel
+    if getattr(calib, "intrinsics", None) is not None:
+        fx = float(calib.intrinsics.fx)
+        fy = float(calib.intrinsics.fy)
+        cx = float(calib.intrinsics.cx)
+        cy = float(calib.intrinsics.cy)
+    else:
+        fx = fy = 606.0
+        cx = 320.0
+        cy = 240.0
+
+    if use_undistort and getattr(calib, "camera_matrix", None) is not None and getattr(calib, "dist_coeffs", None) is not None:
+        pts = np.array([[[float(pixel_x), float(pixel_y)]]], dtype=np.float32)
+        try:
+            und = cv2.undistortPoints(pts, calib.camera_matrix, calib.dist_coeffs, P=None)
+            x_norm = float(und[0, 0, 0])
+            y_norm = float(und[0, 0, 1])
+        except Exception:
+            x_norm = (float(pixel_x) - cx) / fx
+            y_norm = (float(pixel_y) - cy) / fy
+    else:
+        x_norm = (float(pixel_x) - cx) / fx
+        y_norm = (float(pixel_y) - cy) / fy
+
+    # 2) Camera-space point + reflect X
+    cam_point = np.array([x_norm * depth_mm, y_norm * depth_mm, depth_mm], dtype=float)
+    cam_point = np.diag([-1.0, 1.0, 1.0]) @ cam_point
+
+    # 3) R_be from joints (yaw = j1+j2+j4)
+    yaw_deg = float(j1_deg + j2_deg + j4_deg)
+    theta = math.radians(yaw_deg)
+    R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
+                     [math.sin(theta),  math.cos(theta), 0.0],
+                     [0.0,              0.0,             1.0]], dtype=float)
+
+    # 4) R_bc using corrected hand-eye
+    R_ee2cam = calib.handeye_R_ee2cam
+    R_bc = R_be @ R_ee2cam
+
+    # 5) t_bc from provided camera_position (base->cam)
+    t_bc = np.array([float(camera_position[0]), float(camera_position[1]), float(camera_position[2])], dtype=float)
+
+    # 6) Transform to arm/base frame
+    arm_point = t_bc + R_bc @ cam_point
+    return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
 
 
 def main():

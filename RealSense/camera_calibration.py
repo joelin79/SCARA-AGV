@@ -18,12 +18,13 @@ import math
 
 # Add parent directory to path for imports
 sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+
+# Lazy imports to avoid opening serial on module import
+scara_control = None
 try:
-    import Arm_Control.SCARA as scara_control
     from Arm_Control.SCARA_Simulator import SCARA
 except ImportError:
-    scara_control = None
-    from Arm_Control.SCARA_Simulator import SCARA
+    SCARA = None
 
 @dataclass
 class CameraIntrinsics:
@@ -379,7 +380,10 @@ class CameraCalibrator:
             for j, ext_angle in enumerate(orientation_set):
                 print(f"Pose {captures+1}: base pos=({x:.1f},{y:.1f},{z:.1f}), cam dir={ext_angle:.1f}°")
                 try:
-                    if self.is_real_arm and scara_control:
+                    if self.is_real_arm:
+                        # Lazy import to avoid serial on module import
+                        if scara_control is None:
+                            import Arm_Control.SCARA as scara_control
                         scara_control.quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=ext_angle)
                         time.sleep(2.0)
                     elif self.arm:
@@ -457,6 +461,9 @@ class CameraCalibrator:
                 # Build gripper (ee) -> base from SCARA current state
                 try:
                     if scara_control is not None:
+                        # Lazy import to avoid serial on module import
+                        if scara_control is None:
+                            import Arm_Control.SCARA as scara_control
                         j1 = scara_control.CUR_J1
                         j2 = scara_control.CUR_J2
                         j4 = scara_control.CUR_J4
@@ -614,7 +621,29 @@ class CameraCalibrator:
                 he = data["handeye"]
                 self.handeye_R_ee2cam = np.array(he["R_ee2cam"]) if "R_ee2cam" in he else None
                 self.handeye_t_ee2cam = np.array(he["t_ee2cam"]) if "t_ee2cam" in he else None
-                print("HANDEYEEEEEEE")
+
+                # TODO: Axis correction is made after calibration
+                # Apply same axis corrections as the visualizer for consistency
+                try:
+                    Rz180 = np.array([[-1., 0., 0.],
+                                      [ 0.,-1., 0.],
+                                      [ 0., 0., 1.]], dtype=float)
+                    Rx180 = np.array([[ 1., 0., 0.],
+                                      [ 0.,-1., 0.],
+                                      [ 0., 0.,-1.]], dtype=float)
+                    Rcorr = Rx180 @ Rz180
+                    if self.handeye_R_ee2cam is not None:
+                        self.handeye_R_ee2cam = Rcorr @ self.handeye_R_ee2cam
+                    if self.handeye_t_ee2cam is not None:
+                        self.handeye_t_ee2cam = Rcorr @ self.handeye_t_ee2cam
+                    Rz90 = np.array([[0., 1., 0.],
+                                     [-1., 0., 0.],
+                                     [0., 0., 1.]], dtype=float)
+                    if self.handeye_R_ee2cam is not None:
+                        self.handeye_R_ee2cam = self.handeye_R_ee2cam @ Rz90
+                    print("HANDEYEEEEEEEE")
+                except Exception:
+                    pass
             
             print(f"Calibration loaded from {filepath}")
             return True
@@ -642,127 +671,7 @@ class CameraCalibrator:
         
         return dst
     
-    def pixel_to_arm_coordinates(self, pixel_x: int, pixel_y: int, depth_mm: float) -> Tuple[float, float, float]:
-        """
-        Convert pixel coordinates to arm coordinates using calibration
-        
-        Args:
-            pixel_x, pixel_y: Pixel coordinates
-            depth_mm: Depth in millimeters
-            
-        Returns:
-            (arm_x, arm_y, arm_z) in millimeters
-        """
-        if self.intrinsics is None:
-            print("[pixel_to_arm_coordinates] No calibration data available")
-            return 0, 0, 0
-        
-        # Convert to camera coordinates using undistorted normalized points when available
-        print("[pixel_to_arm_coordinates] Inputs:")
-        print(f"  pixel_x, pixel_y = ({pixel_x}, {pixel_y})")
-        print(f"  depth_mm = {depth_mm}")
-        print("[pixel_to_arm_coordinates] Intrinsics:")
-        print(f"  fx = {self.intrinsics.fx}, fy = {self.intrinsics.fy}, cx = {self.intrinsics.cx}, cy = {self.intrinsics.cy}")
-        if self.camera_matrix is not None:
-            print(f"  camera_matrix =\n{self.camera_matrix}")
-        if self.dist_coeffs is not None:
-            print(f"  dist_coeffs = {self.dist_coeffs.flatten()}")
-        try:
-            if self.camera_matrix is not None and self.dist_coeffs is not None:
-                pts = np.array([[[float(pixel_x), float(pixel_y)]]], dtype=np.float32)
-                undistorted = cv2.undistortPoints(pts, self.camera_matrix, self.dist_coeffs, P=None)
-                x_norm = float(undistorted[0, 0, 0])
-                y_norm = float(undistorted[0, 0, 1])
-                print("[pixel_to_arm_coordinates] Undistortion path:")
-                print(f"  original pixel = ({pixel_x:.3f}, {pixel_y:.3f})")
-                print(f"  undistorted normalized = ({x_norm:.6f}, {y_norm:.6f})")
-                # Reflect X to match runtime convention
-                camera_x = -x_norm * depth_mm
-                camera_y = y_norm * depth_mm
-                camera_z = depth_mm
-            else:
-                # Reflect X to match runtime convention
-                camera_x = - (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
-                camera_y = (pixel_y - self.intrinsics.cy) * depth_mm / self.intrinsics.fy
-                camera_z = depth_mm
-                print("[pixel_to_arm_coordinates] Pinhole path (no undistortion available):")
-                print(f"  camera_x = -(px - cx) * Z / fx = -({pixel_x} - {self.intrinsics.cx}) * {depth_mm} / {self.intrinsics.fx} = {camera_x}")
-                print(f"  camera_y = (py - cy) * Z / fy = ({pixel_y} - {self.intrinsics.cy}) * {depth_mm} / {self.intrinsics.fy} = {camera_y}")
-                print(f"  camera_z = Z = {camera_z}")
-        except Exception as e:
-            print(f"[pixel_to_arm_coordinates] Undistortion calculation failed: {e}. Falling back to pinhole model")
-            camera_x = - (pixel_x - self.intrinsics.cx) * depth_mm / self.intrinsics.fx
-            camera_y = (pixel_y - self.intrinsics.cy) * depth_mm / self.intrinsics.fy
-            camera_z = depth_mm
 
-        camera_point = np.array([camera_x, camera_y, camera_z], dtype=float)
-        print("[pixel_to_arm_coordinates] Camera-space point:")
-        print(f"  camera_point = [{camera_x:.3f}, {camera_y:.3f}, {camera_z:.3f}] (mm)")
-        
-        # Preferred: use hand-eye T_ee_cam and current SCARA pose to compute T_base_cam
-        if self.handeye_R_ee2cam is not None and self.handeye_t_ee2cam is not None:
-            try:
-                if scara_control is not None:
-                    theta = math.radians(scara_control.CUR_J1 + scara_control.CUR_J2 + scara_control.CUR_J4)
-                    R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
-                                     [math.sin(theta),  math.cos(theta), 0.0],
-                                     [0.0,              0.0,             1.0]], dtype=float)
-                    t_be = np.array([scara_control.CUR_X, scara_control.CUR_Y, scara_control.CUR_Z], dtype=float)
-                    print("[pixel_to_arm_coordinates] Using real arm pose for base<-ee:")
-                    print(f"  CUR_J1,J2,J4 (deg) = {scara_control.CUR_J1}, {scara_control.CUR_J2}, {scara_control.CUR_J4}")
-                    print(f"  theta (rad) = {theta}")
-                    print(f"  R_be =\n{R_be}")
-                    print(f"  t_be = {t_be}")
-                elif self.arm is not None:
-                    # Approximate from simulator state
-                    cx, cy, cz = self.arm.get_camera_position()
-                    yaw_rad = math.radians(self.arm.current_j4)
-                    ee_x = cx - 140.0 * math.cos(yaw_rad)
-                    ee_y = cy - 140.0 * math.sin(yaw_rad)
-                    ee_z = cz
-                    R_be = np.array([[math.cos(yaw_rad), -math.sin(yaw_rad), 0.0],
-                                     [math.sin(yaw_rad),  math.cos(yaw_rad), 0.0],
-                                     [0.0,                0.0,               1.0]], dtype=float)
-                    t_be = np.array([ee_x, ee_y, ee_z], dtype=float)
-                    print("[pixel_to_arm_coordinates] Using simulator pose for base<-ee:")
-                    print(f"  camera_position (cx,cy,cz) = ({cx}, {cy}, {cz})")
-                    print(f"  yaw_rad (from J4) = {yaw_rad}")
-                    print(f"  estimated ee = ({ee_x}, {ee_y}, {ee_z})")
-                    print(f"  R_be =\n{R_be}")
-                    print(f"  t_be = {t_be}")
-                else:
-                    # Cannot determine pose
-                    raise RuntimeError("No arm interface for pose computation")
-                # Compose R_base_cam = R_be * R_ec ; t_base_cam = R_be * t_ec + t_be
-                R_bc = R_be @ self.handeye_R_ee2cam
-                t_bc = R_be @ self.handeye_t_ee2cam + t_be
-                print("[pixel_to_arm_coordinates] Hand-eye (ee->cam):")
-                print(f"  R_ee2cam =\n{self.handeye_R_ee2cam}")
-                print(f"  t_ee2cam = {self.handeye_t_ee2cam}")
-                print("[pixel_to_arm_coordinates] Composed base<-cam:")
-                print(f"  R_bc = R_be @ R_ee2cam =\n{R_bc}")
-                print(f"  t_bc = R_be @ t_ee2cam + t_be = {t_bc}")
-                arm_point = R_bc @ camera_point + t_bc
-                print("[pixel_to_arm_coordinates] Final arm-space point (hand-eye path):")
-                print(f"  arm_point = {arm_point}")
-                return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
-            except Exception as e:
-                print(f"[pixel_to_arm_coordinates] Hand-eye transform failed, falling back: {e}")
-                # Fall through to other methods
-        
-        # Legacy: if a static extrinsics (camera->arm base) is present, apply it
-        if self.extrinsics is not None:
-            print("[pixel_to_arm_coordinates] Static extrinsics (base<-cam) path:")
-            print(f"  R_bc =\n{self.extrinsics.rotation_matrix}")
-            print(f"  t_bc = {self.extrinsics.translation_vector}")
-            arm_point = self.extrinsics.rotation_matrix @ camera_point + self.extrinsics.translation_vector
-            print(f"  arm_point = R_bc @ camera_point + t_bc = {arm_point}")
-            return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
-        
-        # Fallback: return camera coordinates if nothing else is available
-        print("[pixel_to_arm_coordinates] Fallback path: returning camera-space as arm-space")
-        return float(camera_x), float(camera_y), float(camera_z)
-    
     def cleanup(self):
         """Clean up resources"""
         if self.camera:
