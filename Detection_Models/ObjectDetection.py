@@ -25,6 +25,7 @@ project_root = current_dir.parent
 sys.path.append(str(project_root))
 sys.path.append(str(project_root / "Arm_Control"))
 sys.path.append(str(project_root / "RealSense"))
+sys.path.append(str(project_root / "Detection_Models"))
 
 
 # Import project modules (lazy where needed to avoid serial on import)
@@ -43,6 +44,13 @@ try:
 except ImportError:
     print("Error: ultralytics not installed. Please install with: pip install ultralytics")
     sys.exit(1)
+
+# Import ArUco plate detection
+try:
+    from aruco_plate_detector import ArUcoPlateDetector
+except ImportError as e:
+    print(f"Warning: Could not import ArUcoPlateDetector: {e}")
+    ArUcoPlateDetector = None  # type: ignore
 
 @dataclass
 class DetectedObject:
@@ -79,9 +87,11 @@ class ObjectDetectionSystem:
         self.camera = None
         self.calibrator = None
         self.yolo_model = None
+        self.aruco_detector = None
         
         # Detection data
         self.detected_objects: List[DetectedObject] = []
+        self.detected_plates: List = []  # Will store ArUco plate definitions
         self.scan_positions: List[Tuple[float, float, float]] = []
         self.current_scan_index = 0
         
@@ -137,6 +147,22 @@ class ObjectDetectionSystem:
         except Exception as e:
             print(f"✗ YOLO model initialization failed: {e}")
             return False
+        
+        # Initialize ArUco plate detector
+        if ArUcoPlateDetector is not None:
+            try:
+                print("Initializing ArUco plate detector...")
+                self.aruco_detector = ArUcoPlateDetector(
+                    aruco_dict_type=cv2.aruco.DICT_6X6_250,
+                    marker_size_mm=30.0,
+                    expected_markers=4
+                )
+                print("✓ ArUco plate detector initialized successfully")
+            except Exception as e:
+                print(f"⚠ ArUco detector initialization failed: {e}")
+                self.aruco_detector = None
+        else:
+            print("⚠ ArUco plate detection not available")
         
         # Initialize SCARA arm
         if scara_control is None:
@@ -262,10 +288,25 @@ class ObjectDetectionSystem:
                                             (cam_x, cam_y, cam_z), 
                                             confidence_threshold)
             
+            # Run ArUco detection if available
+            if self.aruco_detector is not None:
+                try:
+                    print(f"  Detecting ArUco markers...")
+                    aruco_markers = self.aruco_detector.detect_markers(
+                        color_image, depth_image, (cam_x, cam_y, cam_z),
+                        self._pixel_to_arm_coordinates
+                    )
+                    print(f"  Found {len(aruco_markers)} ArUco markers")
+                except Exception as e:
+                    print(f"  ⚠ ArUco detection failed: {e}")
+                    aruco_markers = []
+            else:
+                aruco_markers = []
+            
             # Save annotated detection image if requested
             if self.save_images:
                 annotated_image = self._create_annotated_detection_image(
-                    color_image, detections, (cam_x, cam_y, cam_z), i+1
+                    color_image, detections, (cam_x, cam_y, cam_z), i+1, aruco_markers
                 )
                 img_filename = self.images_dir / f"detection_{self.timestamp}_{i+1:03d}.jpg"
                 cv2.imwrite(str(img_filename), annotated_image)
@@ -281,6 +322,10 @@ class ObjectDetectionSystem:
             self.detected_objects.extend(detections)
         
         print(f"\nScanning completed! Total detections: {total_detections}")
+        
+        # Process ArUco markers to define plates
+        if self.aruco_detector is not None:
+            self._process_aruco_plates()
         
         # Filter duplicates
         self._filter_duplicate_objects()
@@ -433,7 +478,8 @@ class ObjectDetectionSystem:
     def _create_annotated_detection_image(self, color_image: np.ndarray, 
                                         detections: List[DetectedObject],
                                         camera_position: Tuple[float, float, float],
-                                        scan_position: int) -> np.ndarray:
+                                        scan_position: int,
+                                        aruco_markers: List = None) -> np.ndarray:
         """
         Create annotated detection image similar to yolo_detection.py
         
@@ -521,6 +567,29 @@ class ObjectDetectionSystem:
         cv2.putText(annotated_image, count_text, (10, 90), cv2.FONT_HERSHEY_SIMPLEX, 
                    font_scale if font_scale > 0.7 else 0.7, (0, 255, 255), 
                    font_thickness if font_thickness > 1 else 2)
+        
+        # Draw ArUco markers if available
+        if aruco_markers:
+            aruco_count = len(aruco_markers)
+            aruco_text = f'ArUco markers: {aruco_count}'
+            cv2.putText(annotated_image, aruco_text, (10, 120), cv2.FONT_HERSHEY_SIMPLEX, 
+                       font_scale if font_scale > 0.7 else 0.7, (0, 255, 0), 
+                       font_thickness if font_thickness > 1 else 2)
+            
+            # Draw each ArUco marker
+            for marker in aruco_markers:
+                # Draw marker corners
+                corners = marker.corners.astype(int)
+                cv2.polylines(annotated_image, [corners], True, (0, 255, 0), 2)
+                
+                # Draw marker ID
+                center_x, center_y = marker.center_pixel
+                cv2.putText(annotated_image, f"ArUco:{marker.marker_id}", 
+                           (center_x + 10, center_y - 10),
+                           cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 0), 2)
+                
+                # Draw center point
+                cv2.circle(annotated_image, (center_x, center_y), 4, (255, 0, 255), -1)
         
         return annotated_image
     
@@ -797,6 +866,41 @@ class ObjectDetectionSystem:
             print(f"[debug_pixel_to_arm_coordinates] Error: {e}")
             return 0.0, 0.0, 0.0
     
+    def _process_aruco_plates(self):
+        """Process all detected ArUco markers to define plates"""
+        if self.aruco_detector is None:
+            return
+        
+        print("Processing ArUco markers to define plates...")
+        
+        try:
+            # Get all markers from the detector
+            all_markers = self.aruco_detector.detected_markers
+            
+            if not all_markers:
+                print("No ArUco markers detected during scanning")
+                return
+            
+            # Define plates from markers
+            plates = self.aruco_detector.define_plates_from_markers()
+            
+            if plates:
+                self.detected_plates = plates
+                print(f"✓ Defined {len(plates)} plates from ArUco markers")
+                
+                # Print plate information
+                for i, plate in enumerate(plates):
+                    print(f"  Plate {i+1}: {plate.dimensions[0]:.0f}x{plate.dimensions[1]:.0f}mm")
+                    print(f"    Center: ({plate.center_arm_coords[0]:.1f}, {plate.center_arm_coords[1]:.1f}, {plate.center_arm_coords[2]:.1f})")
+                    print(f"    Height: {plate.height_mm:.1f}mm")
+                    print(f"    Area: {plate.area_mm2:.0f}mm²")
+                    print(f"    Orientation: {plate.orientation_deg:.1f}°")
+            else:
+                print("⚠ Could not define plates from detected markers")
+                
+        except Exception as e:
+            print(f"Error processing ArUco plates: {e}")
+    
     def _filter_duplicate_objects(self, distance_threshold: float = 30.0):
         """
         Filter duplicate objects that are close to each other
@@ -898,10 +1002,12 @@ class ObjectDetectionSystem:
                 "scan_metadata": {
                     "timestamp": time.strftime("%Y-%m-%d %H:%M:%S"),
                     "total_objects": len(self.detected_objects),
+                    "total_plates": len(self.detected_plates),
                     "scan_positions": len(self.scan_positions),
                     "model_path": str(self.model_path)
                 },
-                "detected_objects": []
+                "detected_objects": [],
+                "detected_plates": []
             }
             
             for obj in self.detected_objects:
@@ -924,6 +1030,26 @@ class ObjectDetectionSystem:
                     }
                 }
                 results["detected_objects"].append(obj_data)
+            
+            # Add plate data
+            for plate in self.detected_plates:
+                plate_data = {
+                    "plate_id": plate.plate_id,
+                    "center_arm_coordinates": {
+                        "x": float(plate.center_arm_coords[0]),
+                        "y": float(plate.center_arm_coords[1]),
+                        "z": float(plate.center_arm_coords[2])
+                    },
+                    "dimensions": {
+                        "width_mm": float(plate.dimensions[0]),
+                        "length_mm": float(plate.dimensions[1])
+                    },
+                    "height_mm": float(plate.height_mm),
+                    "area_mm2": float(plate.area_mm2),
+                    "orientation_deg": float(plate.orientation_deg),
+                    "edge_marker_ids": [int(m.marker_id) for m in plate.edge_markers]
+                }
+                results["detected_plates"].append(plate_data)
             
             output_file = self.output_dir / filename
             with open(output_file, 'w') as f:
@@ -972,6 +1098,37 @@ class ObjectDetectionSystem:
             ax.scatter(scan_coords[:, 0], scan_coords[:, 1], scan_coords[:, 2],
                       c='gray', s=20, alpha=0.3, marker='^', label='Scan Positions')
         
+        # Plot detected plates
+        if self.detected_plates:
+            # Use different colors for each plate
+            plate_colors = plt.cm.tab10(np.linspace(0, 1, len(self.detected_plates)))
+            
+            for i, plate in enumerate(self.detected_plates):
+                color = plate_colors[i]
+                
+                # Plot plate center
+                ax.scatter(plate.center_arm_coords[0], plate.center_arm_coords[1], plate.center_arm_coords[2],
+                          c=[color], s=150, alpha=0.8, marker='s', label=f'Plate {i+1}')
+                
+                # Plot plate corners and edges
+                corners = plate.corners_arm_coords
+                
+                # Draw plate edges (connect corners in order)
+                for j in range(4):
+                    start_corner = corners[j]
+                    end_corner = corners[(j + 1) % 4]
+                    
+                    # Draw edge line
+                    ax.plot([start_corner[0], end_corner[0]], 
+                           [start_corner[1], end_corner[1]], 
+                           [start_corner[2], end_corner[2]], 
+                           c=color, linewidth=2, alpha=0.8)
+                
+                # Add plate annotation
+                ax.text(plate.center_arm_coords[0], plate.center_arm_coords[1], plate.center_arm_coords[2] + 15,
+                       f'P{i+1}: {plate.dimensions[0]:.0f}x{plate.dimensions[1]:.0f}mm\nH:{plate.height_mm:.0f}mm',
+                       fontsize=8, ha='center', va='bottom')
+        
         # Plot workspace bounds
         if show_workspace:
             # SCARA base
@@ -989,7 +1146,12 @@ class ObjectDetectionSystem:
         ax.set_xlabel('X (mm)')
         ax.set_ylabel('Y (mm)')
         ax.set_zlabel('Z (mm)')
-        ax.set_title(f'3D Object Detection Results\n{len(self.detected_objects)} objects detected')
+        
+        # Update title to include plate information
+        title_parts = [f'3D Object Detection Results\n{len(self.detected_objects)} objects detected']
+        if self.detected_plates:
+            title_parts.append(f'{len(self.detected_plates)} plates detected')
+        ax.set_title('\n'.join(title_parts))
         
         # Remove duplicate labels
         handles, labels = ax.get_legend_handles_labels()
@@ -1007,6 +1169,142 @@ class ObjectDetectionSystem:
         print(f"3D plot saved to {plot_file}")
         
         plt.show()
+    
+    def visualize_plates_only(self, show_markers: bool = True) -> None:
+        """
+        Create a dedicated 3D visualization of detected plates
+        
+        Args:
+            show_markers: Whether to show individual ArUco markers
+        """
+        if not self.detected_plates:
+            print("No plates detected to visualize")
+            return
+        
+        print("Creating 3D plate visualization...")
+        
+        fig = plt.figure(figsize=(14, 10))
+        ax = fig.add_subplot(111, projection='3d')
+        
+        # Plot each plate with detailed information
+        for i, plate in enumerate(self.detected_plates):
+            # Use distinct color for each plate
+            color = plt.cm.tab10(i / len(self.detected_plates))
+            
+            # Plot plate center
+            ax.scatter(plate.center_arm_coords[0], plate.center_arm_coords[1], plate.center_arm_coords[2],
+                      c=[color], s=200, alpha=0.9, marker='s', label=f'Plate {i+1} ({plate.plate_id})')
+            
+            # Plot plate corners
+            corners = plate.corners_arm_coords
+            corner_coords = np.array(corners)
+            ax.scatter(corner_coords[:, 0], corner_coords[:, 1], corner_coords[:, 2],
+                      c=[color], s=100, alpha=0.7, marker='o')
+            
+            # Draw plate edges (thicker lines)
+            for j in range(4):
+                start_corner = corners[j]
+                end_corner = corners[(j + 1) % 4]
+                
+                ax.plot([start_corner[0], end_corner[0]], 
+                       [start_corner[1], end_corner[1]], 
+                       [start_corner[2], end_corner[2]], 
+                       c=color, linewidth=3, alpha=0.8)
+            
+            # Add detailed plate annotation
+            info_text = f'P{i+1}: {plate.dimensions[0]:.0f}×{plate.dimensions[1]:.0f}mm\n'
+            info_text += f'H: {plate.height_mm:.0f}mm\n'
+            info_text += f'A: {plate.area_mm2:.0f}mm²\n'
+            info_text += f'θ: {plate.orientation_deg:.1f}°'
+            
+            ax.text(plate.center_arm_coords[0], plate.center_arm_coords[1], plate.center_arm_coords[2] + 20,
+                   info_text, fontsize=9, ha='center', va='bottom', 
+                   bbox=dict(boxstyle="round,pad=0.3", facecolor='white', alpha=0.8))
+            
+            # Show individual markers if requested
+            if show_markers:
+                for j, marker in enumerate(plate.edge_markers):
+                    marker_color = plt.cm.Set1(j / 4)  # Different color for each marker
+                    ax.scatter(marker.arm_coords[0], marker.arm_coords[1], marker.arm_coords[2],
+                              c=[marker_color], s=80, alpha=0.8, marker='^')
+                    
+                    # Add marker ID
+                    ax.text(marker.arm_coords[0], marker.arm_coords[1], marker.arm_coords[2] - 10,
+                           f'ArUco:{marker.marker_id}', fontsize=7, ha='center', va='top')
+        
+        # Add SCARA base reference
+        ax.scatter([0], [0], [0], c='red', s=300, marker='x', label='SCARA Base')
+        
+        # Customize plot
+        ax.set_xlabel('X (mm)')
+        ax.set_ylabel('Y (mm)')
+        ax.set_zlabel('Z (mm)')
+        ax.set_title(f'3D Plate Detection Results\n{len(self.detected_plates)} plates detected')
+        
+        # Set aspect ratio
+        ax.set_box_aspect([1, 1, 0.5])
+        
+        plt.tight_layout()
+        
+        # Save plot
+        plot_file = self.output_dir / "3d_plate_results.png"
+        plt.savefig(plot_file, dpi=300, bbox_inches='tight')
+        print(f"3D plate plot saved to {plot_file}")
+        
+        plt.show()
+    
+    def get_workspace_info(self) -> Dict:
+        """
+        Get workspace information based on detected plates
+        
+        Returns:
+            Dictionary with workspace information
+        """
+        if not self.detected_plates:
+            return {}
+        
+        # Find the largest plate (assumed to be the main workspace)
+        main_plate = max(self.detected_plates, key=lambda p: p.area_mm2)
+        
+        workspace_info = {
+            "main_plate": {
+                "center": main_plate.center_arm_coords,
+                "dimensions": main_plate.dimensions,
+                "height": main_plate.height_mm,
+                "area": main_plate.area_mm2,
+                "orientation": main_plate.orientation_deg
+            },
+            "total_plates": len(self.detected_plates),
+            "workspace_bounds": self._calculate_workspace_bounds()
+        }
+        
+        return workspace_info
+    
+    def _calculate_workspace_bounds(self) -> Dict:
+        """Calculate workspace bounds based on all detected plates"""
+        if not self.detected_plates:
+            return {}
+        
+        all_x = []
+        all_y = []
+        all_z = []
+        
+        for plate in self.detected_plates:
+            for corner in plate.corners_arm_coords:
+                all_x.append(corner[0])
+                all_y.append(corner[1])
+                all_z.append(corner[2])
+        
+        bounds = {
+            "x_min": min(all_x),
+            "x_max": max(all_x),
+            "y_min": min(all_y),
+            "y_max": max(all_y),
+            "z_min": min(all_z),
+            "z_max": max(all_z)
+        }
+        
+        return bounds
     
     def cleanup(self):
         """Clean up resources"""
@@ -1132,8 +1430,20 @@ def main():
         # Save results
         detector.save_results("detected_objects.json")
         
-        # Create visualization
+        # Show workspace information
+        workspace_info = detector.get_workspace_info()
+        if workspace_info:
+            print(f"\nWorkspace Information:")
+            print(f"  Main plate: {workspace_info['main_plate']['dimensions'][0]:.0f}x{workspace_info['main_plate']['dimensions'][1]:.0f}mm")
+            print(f"  Plate height: {workspace_info['main_plate']['height']:.1f}mm")
+            print(f"  Total plates: {workspace_info['total_plates']}")
+        
+        # Create visualizations
         detector.visualize_3d()
+        
+        # Also create dedicated plate visualization if plates were detected
+        if detector.detected_plates:
+            detector.visualize_plates_only()
         
         print(f"\nDetection completed successfully!")
         print(f"Total objects detected: {len(detector.detected_objects)}")
