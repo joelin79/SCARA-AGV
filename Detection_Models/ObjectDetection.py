@@ -17,6 +17,8 @@ from dataclasses import dataclass
 import matplotlib.pyplot as plt
 from mpl_toolkits.mplot3d import Axes3D
 
+import shortest_path_optimizer
+
 # Add project directories to path
 current_dir = Path(__file__).parent
 project_root = current_dir.parent
@@ -162,8 +164,8 @@ class ObjectDetectionSystem:
         
         # Define workspace bounds (based on SCARA capabilities)
         # From the workspace analysis, typical reachable area for camera
-        x_min, x_max = 50, 450   # Conservative bounds to avoid collisions
-        y_min, y_max = -200, 200
+        x_min, x_max = -250, 450   # Conservative bounds to avoid collisions
+        y_min, y_max = -420, 420
         
         positions = []
         
@@ -180,6 +182,7 @@ class ObjectDetectionSystem:
         
         print(f"Generated {len(positions)} scanning positions")
         self.scan_positions = positions
+        self.scan_positions = shortest_path_optimizer.optimize_scanning_order(positions)
         return positions
     
     def _is_camera_position_reachable(self, cam_x: float, cam_y: float, cam_z: float, 
@@ -588,7 +591,6 @@ class ObjectDetectionSystem:
             fy = float(self.calibrator.intrinsics.fy)
             cx = float(self.calibrator.intrinsics.cx)
             cy = float(self.calibrator.intrinsics.cy)
-            print("Intrinsic Loaded @591")
         else:
             cx = 320.0
             cy = 240.0
@@ -1022,7 +1024,7 @@ def debug_pixel_to_arm_coordinates(j1_deg: float,
                                    pixel_y: int,
                                    depth_mm: float,
                                    use_calibration: Optional[bool] = None,
-                                   use_undistort: bool = True) -> Tuple[float, float, float]:
+                                   use_undistort: bool = False) -> Tuple[float, float, float]:
     """
     Debug helper that mirrors the visualizer’s calibrated flow exactly.
     Requires calibration (intrinsics + hand-eye). No SCARA API calls.
