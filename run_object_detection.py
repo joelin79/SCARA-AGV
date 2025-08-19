@@ -46,7 +46,7 @@ def main():
         
         # Run the scan
         print("\nStarting workspace scan...")
-        if not detector.scan_workspace(confidence_threshold=0.5):
+        if not detector.scan_workspace(confidence_threshold=0.7):
             print("❌ Scanning failed")
             return
         

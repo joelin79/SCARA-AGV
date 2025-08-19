@@ -3,12 +3,39 @@ import time
 import pygame
 import math
 
-ser = serial.Serial(port='COM3', baudrate=115200, timeout=1)
+# Initialize serial connection
+ser = None
+
+def init_serial():
+    """Initialize serial connection to SCARA robot"""
+    global ser
+    try:
+        ser = serial.Serial(port='COM3', baudrate=115200, timeout=1)
+        print(f"✓ Connected to SCARA robot on COM3")
+        return True
+    except Exception as e:
+        print(f"✗ Failed to connect to SCARA robot on COM3: {e}")
+        print("  Check if robot is powered on and connected")
+        print("  Or update the COM port in this file")
+        return False
+
+# Try to initialize serial connection
+if not init_serial():
+    print("⚠ Running in simulation mode - no SCARA robot connected")
+
+def is_connected():
+    """Check if SCARA robot is connected and responding"""
+    if ser is None:
+        return False
+    try:
+        return ser.is_open
+    except:
+        return False
 
 RIGHT_HANDED_MODE = True
 
 HOME_FEEDRATE = 3000
-MAX_FEEDRATE = 5000
+MAX_FEEDRATE = 10000
 MAX_ACC = 70
 
 PULSE_J1 = 88.889
@@ -452,7 +479,7 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         CUR_X, CUR_Y, CUR_Z = x, y, z
 
 # Camera position movement functions
-def quick_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=-90.0):
     """
     Quick movement to camera position with automatic extension arm control.
     
@@ -733,10 +760,19 @@ def calibrate():
 
 
 def send_commands(commands):
-    for cmd in commands:
-        ser.write((cmd + '\n').encode())
-        print(f"Sent: {cmd}")
-        time.sleep(0.02)
+    if ser is None:
+        print("⚠ No serial connection - cannot send commands")
+        return False
+    
+    try:
+        for cmd in commands:
+            ser.write((cmd + '\n').encode())
+            print(f"Sent: {cmd}")
+            time.sleep(0.02)
+        return True
+    except Exception as e:
+        print(f"✗ Error sending commands: {e}")
+        return False
 
 STEP_CART = 3  # mm step for cartesian movements
 STEP_ANG = 1   # degree step for joint angle movements

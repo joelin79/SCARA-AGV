@@ -38,6 +38,36 @@ except ImportError as e:
 # Lazy SCARA/Calibrator import to avoid opening serial on module import
 scara_control = None
 
+def _import_scara():
+    """Lazy import of SCARA control to avoid serial connection on module import"""
+    global scara_control
+    if scara_control is None:
+        try:
+            print("Attempting to import SCARA control...")
+            import Arm_Control.SCARA as scara_control
+            print("✓ SCARA control imported successfully")
+            
+            # Test if we can access the serial connection
+            try:
+                if hasattr(scara_control, 'is_connected') and scara_control.is_connected():
+                    print("✓ Serial connection is open and working")
+                elif hasattr(scara_control, 'ser') and scara_control.ser and scara_control.ser.is_open:
+                    print("✓ Serial connection is open")
+                else:
+                    print("⚠ Serial connection is not open")
+                    scara_control = None
+            except Exception as e:
+                print(f"⚠ Serial connection test failed: {e}")
+                scara_control = None
+                
+        except Exception as e:
+            print(f"⚠ Failed to import SCARA control: {e}")
+            print("  This usually means the serial connection failed")
+            print("  Check if your SCARA robot is connected to COM3")
+            print("  Or update the COM port in Arm_Control/SCARA.py")
+            scara_control = None
+    return scara_control
+
 # Import YOLO
 try:
     from ultralytics import YOLO
@@ -165,10 +195,11 @@ class ObjectDetectionSystem:
             print("⚠ ArUco plate detection not available")
         
         # Initialize SCARA arm
-        if scara_control is None:
-            print("⚠ SCARA control not available - running in simulation mode")
-        else:
+        print("Initializing SCARA arm control...")
+        if _import_scara() is not None:
             print("✓ SCARA control available")
+        else:
+            print("⚠ SCARA control not available - running in simulation mode")
         
         return True
     
@@ -223,6 +254,11 @@ class ObjectDetectionSystem:
         Returns:
             True if position is reachable
         """
+        # Check if SCARA control is available
+        if scara_control is None:
+            print("⚠ SCARA control not available, assuming all positions are reachable")
+            return True
+            
         try:
             # Calculate required end effector position
             extension_angle_rad = math.radians(camera_direction)
@@ -273,7 +309,7 @@ class ObjectDetectionSystem:
             
             # Movement completion is now handled in _move_camera_to_position
             # Additional settling time for camera stabilization
-            time.sleep(11)
+            time.sleep(3)
             
             # Capture image
             image_data = self._capture_image()
@@ -1454,7 +1490,11 @@ def main():
     except Exception as e:
         print(f"Error during detection: {e}")
     finally:
-        scara_control.quick(scara_control.ORIGIN_X, scara_control.ORIGIN_Y, scara_control.ORIGIN_Z)
+        if scara_control is not None:
+            try:
+                scara_control.quick(scara_control.ORIGIN_X, scara_control.ORIGIN_Y, scara_control.ORIGIN_Z)
+            except Exception as e:
+                print(f"⚠ Warning: Could not return to origin: {e}")
         detector.cleanup()
 
 

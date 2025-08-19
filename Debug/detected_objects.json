@@ -1,36 +1,1000 @@
 {
   "scan_metadata": {
-    "timestamp": "2025-08-12 16:21:38",
-    "total_objects": 1,
-    "scan_positions": 12,
-    "model_path": "C:\\Users\\User\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
+    "timestamp": "2025-08-19 10:34:08",
+    "total_objects": 38,
+    "total_plates": 0,
+    "scan_positions": 24,
+    "model_path": "C:\\Users\\user\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
   },
   "detected_objects": [
     {
       "object_id": 0,
       "class_name": "Cube",
-      "confidence": 0.889799952507019,
+      "confidence": 0.9127829074859619,
       "bbox": [
-        427,
-        278,
-        507,
-        356
+        0,
+        233,
+        57,
+        314
       ],
       "center_pixel": [
-        467,
-        317
+        28,
+        273
       ],
-      "depth_mm": 193.0,
+      "depth_mm": 196.0,
       "arm_coordinates": {
-        "x": 84.12340487329969,
-        "y": -57.835252079970246,
-        "z": -45.12795356305273
+        "x": 134.5249647513546,
+        "y": -91.58956582867427,
+        "z": -44.19959331253793
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 1,
+      "class_name": "Cube",
+      "confidence": 0.9096378087997437,
+      "bbox": [
+        384,
+        36,
+        466,
+        114
+      ],
+      "center_pixel": [
+        425,
+        75
+      ],
+      "depth_mm": 197.0,
+      "arm_coordinates": {
+        "x": 262.0217984424156,
+        "y": -55.38883514647267,
+        "z": -62.69964448991769
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 2,
+      "class_name": "Cube",
+      "confidence": 0.9065777063369751,
+      "bbox": [
+        496,
+        153,
+        578,
+        232
+      ],
+      "center_pixel": [
+        537,
+        192
+      ],
+      "depth_mm": 200.0,
+      "arm_coordinates": {
+        "x": 199.18283046956122,
+        "y": 82.61310720085704,
+        "z": -66.63472359370039
       },
       "camera_position": {
         "x": 150.0,
-        "y": -100.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 3,
+      "class_name": "Cube",
+      "confidence": 0.90512615442276,
+      "bbox": [
+        531,
+        269,
+        612,
+        346
+      ],
+      "center_pixel": [
+        571,
+        307
+      ],
+      "depth_mm": 201.0,
+      "arm_coordinates": {
+        "x": 210.83866534685316,
+        "y": -79.30843247744184,
+        "z": -65.99349473643565
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 4,
+      "class_name": "Cube",
+      "confidence": 0.9036284685134888,
+      "bbox": [
+        129,
+        113,
+        213,
+        193
+      ],
+      "center_pixel": [
+        171,
+        153
+      ],
+      "depth_mm": 195.0,
+      "arm_coordinates": {
+        "x": 80.69856786193299,
+        "y": -30.12701528492739,
+        "z": -50.66832768487609
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 5,
+      "class_name": "Cube",
+      "confidence": 0.9019132852554321,
+      "bbox": [
+        324,
+        147,
+        402,
+        224
+      ],
+      "center_pixel": [
+        363,
+        185
+      ],
+      "depth_mm": 197.0,
+      "arm_coordinates": {
+        "x": 142.14410691379402,
+        "y": 80.24727686558411,
+        "z": -58.07221434339522
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 6,
+      "class_name": "Cube",
+      "confidence": 0.8941113352775574,
+      "bbox": [
+        398,
+        148,
+        474,
+        223
+      ],
+      "center_pixel": [
+        436,
+        185
+      ],
+      "depth_mm": 200.0,
+      "arm_coordinates": {
+        "x": 166.01009868282006,
+        "y": -19.77481928237824,
+        "z": -63.487999751458204
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 7,
+      "class_name": "Cube",
+      "confidence": 0.8932391405105591,
+      "bbox": [
+        131,
+        116,
+        230,
+        214
+      ],
+      "center_pixel": [
+        180,
+        165
+      ],
+      "depth_mm": 193.0,
+      "arm_coordinates": {
+        "x": 84.26774365751943,
+        "y": 73.85544727669063,
+        "z": -48.715867485272724
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 8,
+      "class_name": "Cube",
+      "confidence": 0.8908883333206177,
+      "bbox": [
+        134,
+        278,
+        216,
+        358
+      ],
+      "center_pixel": [
+        175,
+        318
+      ],
+      "depth_mm": 194.0,
+      "arm_coordinates": {
+        "x": 82.57836861381324,
+        "y": 22.670617121428236,
+        "z": -45.943471501013505
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 9,
+      "class_name": "Cube",
+      "confidence": 0.8899538516998291,
+      "bbox": [
+        375,
+        182,
+        452,
+        256
+      ],
+      "center_pixel": [
+        413,
+        219
+      ],
+      "depth_mm": 199.0,
+      "arm_coordinates": {
+        "x": 258.46464411546316,
+        "y": -8.624386288760759,
+        "z": -60.899544675065215
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 10,
+      "class_name": "Cube",
+      "confidence": 0.8899165391921997,
+      "bbox": [
+        0,
+        240,
+        54,
+        324
+      ],
+      "center_pixel": [
+        27,
+        282
+      ],
+      "depth_mm": 199.0,
+      "arm_coordinates": {
+        "x": 232.46263009959353,
+        "y": -88.29199151810195,
+        "z": -46.772231899211704
+      },
+      "camera_position": {
+        "x": 350.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 11,
+      "class_name": "Cube",
+      "confidence": 0.8891147971153259,
+      "bbox": [
+        366,
+        10,
+        448,
+        94
+      ],
+      "center_pixel": [
+        407,
+        52
+      ],
+      "depth_mm": 197.0,
+      "arm_coordinates": {
+        "x": 256.1641887810927,
+        "y": 37.13508543550046,
+        "z": -62.66581666233577
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 12,
+      "class_name": "Cube",
+      "confidence": 0.8880645632743835,
+      "bbox": [
+        394,
+        250,
+        472,
+        326
+      ],
+      "center_pixel": [
+        433,
+        288
+      ],
+      "depth_mm": 200.0,
+      "arm_coordinates": {
+        "x": 165.1900708670447,
+        "y": -85.85338529597442,
+        "z": -60.89666779805481
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 13,
+      "class_name": "Cube",
+      "confidence": 0.8880404829978943,
+      "bbox": [
+        358,
+        250,
+        456,
+        349
+      ],
+      "center_pixel": [
+        407,
+        299
+      ],
+      "depth_mm": 200.0,
+      "arm_coordinates": {
+        "x": 156.67106132276805,
+        "y": 17.748337678316176,
+        "z": -59.776783297396435
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 14,
+      "class_name": "Cube",
+      "confidence": 0.8842047452926636,
+      "bbox": [
+        121,
+        241,
+        202,
+        318
+      ],
+      "center_pixel": [
+        161,
+        279
+      ],
+      "depth_mm": 193.0,
+      "arm_coordinates": {
+        "x": 78.42397492231416,
+        "y": -89.92683289623417,
+        "z": -45.451382760884144
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 15,
+      "class_name": "Cube",
+      "confidence": 0.8794317245483398,
+      "bbox": [
+        357,
+        148,
+        441,
+        231
+      ],
+      "center_pixel": [
+        399,
+        189
+      ],
+      "depth_mm": 198.0,
+      "arm_coordinates": {
+        "x": 253.818118202541,
+        "y": 81.55339606091599,
+        "z": -60.15286764319231
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 16,
+      "class_name": "Cube",
+      "confidence": 0.8721458911895752,
+      "bbox": [
+        230,
+        117,
+        273,
+        171
+      ],
+      "center_pixel": [
+        251,
+        144
+      ],
+      "depth_mm": 208.0,
+      "arm_coordinates": {
+        "x": -96.54313374687558,
+        "y": -434.1910505010716,
+        "z": -66.34936731969611
+      },
+      "camera_position": {
+        "x": -50.0,
+        "y": -420.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 17,
+      "class_name": "Cube",
+      "confidence": 0.8703606128692627,
+      "bbox": [
+        168,
+        211,
+        262,
+        301
+      ],
+      "center_pixel": [
+        215,
+        256
+      ],
+      "depth_mm": 199.0,
+      "arm_coordinates": {
+        "x": 193.8389495897611,
+        "y": 3.3401635872807383,
+        "z": -53.540096771792236
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 18,
+      "class_name": "Cube",
+      "confidence": 0.8699822425842285,
+      "bbox": [
+        109,
+        256,
+        192,
+        337
+      ],
+      "center_pixel": [
+        150,
+        296
+      ],
+      "depth_mm": 200.0,
+      "arm_coordinates": {
+        "x": 272.28496848783584,
+        "y": -83.44945897466675,
+        "z": -51.41129280865928
+      },
+      "camera_position": {
+        "x": 350.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 19,
+      "class_name": "Cube",
+      "confidence": 0.8197654485702515,
+      "bbox": [
+        195,
+        232,
+        238,
+        271
+      ],
+      "center_pixel": [
+        216,
+        251
+      ],
+      "depth_mm": 213.0,
+      "arm_coordinates": {
+        "x": -109.6905489038195,
+        "y": -297.1654569254092,
+        "z": -67.3320409359921
+      },
+      "camera_position": {
+        "x": -50.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 20,
+      "class_name": "Cube",
+      "confidence": 0.7975630164146423,
+      "bbox": [
+        156,
+        191,
+        198,
+        231
+      ],
+      "center_pixel": [
+        177,
+        211
+      ],
+      "depth_mm": 209.0,
+      "arm_coordinates": {
+        "x": -22.03916849781494,
+        "y": -411.28934651270964,
+        "z": -63.10876437810094
+      },
+      "camera_position": {
+        "x": 50.0,
+        "y": -420.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 21,
+      "class_name": "Cube",
+      "confidence": 0.7194987535476685,
+      "bbox": [
+        511,
+        115,
+        545,
+        154
+      ],
+      "center_pixel": [
+        528,
+        134
+      ],
+      "depth_mm": 206.0,
+      "arm_coordinates": {
+        "x": -2.4467258498544666,
+        "y": -437.1602182654169,
+        "z": -73.98045384523093
+      },
+      "camera_position": {
+        "x": -50.0,
+        "y": -420.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 22,
+      "class_name": "Cube",
+      "confidence": 0.6941505670547485,
+      "bbox": [
+        360,
+        193,
+        386,
+        229
+      ],
+      "center_pixel": [
+        373,
+        211
+      ],
+      "depth_mm": 211.0,
+      "arm_coordinates": {
+        "x": -54.82514577384182,
+        "y": -311.0909350776484,
+        "z": -71.84327073629731
+      },
+      "camera_position": {
+        "x": -50.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 23,
+      "class_name": "Cube",
+      "confidence": 0.6532129645347595,
+      "bbox": [
+        347,
+        55,
+        389,
+        95
+      ],
+      "center_pixel": [
+        368,
+        75
+      ],
+      "depth_mm": 206.0,
+      "arm_coordinates": {
+        "x": -56.65314655603199,
+        "y": -457.3097920201744,
+        "z": -70.04033640706132
+      },
+      "camera_position": {
+        "x": -50.0,
+        "y": -420.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 24,
+      "class_name": "Cube",
+      "confidence": 0.6270045042037964,
+      "bbox": [
+        599,
+        0,
+        640,
+        47
+      ],
+      "center_pixel": [
+        619,
+        23
+      ],
+      "depth_mm": 221.0,
+      "arm_coordinates": {
+        "x": 233.9180499857826,
+        "y": -379.1336128898395,
+        "z": -95.84425308364723
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 25,
+      "class_name": "Cube",
+      "confidence": 0.5745816826820374,
+      "bbox": [
+        119,
+        160,
+        171,
+        202
+      ],
+      "center_pixel": [
+        145,
+        181
+      ],
+      "depth_mm": 161.0,
+      "arm_coordinates": {
+        "x": -314.2532138769496,
+        "y": -319.9764587197489,
+        "z": -16.160608623027002
+      },
+      "camera_position": {
+        "x": -250.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 26,
+      "class_name": "Cube",
+      "confidence": 0.5463767051696777,
+      "bbox": [
+        97,
+        92,
+        178,
+        195
+      ],
+      "center_pixel": [
+        137,
+        143
+      ],
+      "depth_mm": 190.0,
+      "arm_coordinates": {
+        "x": -228.1741046410782,
+        "y": -332.8787594881395,
+        "z": -44.94435821562965
+      },
+      "camera_position": {
+        "x": -150.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 27,
+      "class_name": "Partial",
+      "confidence": 0.9301645159721375,
+      "bbox": [
+        25,
+        436,
+        106,
+        479
+      ],
+      "center_pixel": [
+        65,
+        457
+      ],
+      "depth_mm": 199.0,
+      "arm_coordinates": {
+        "x": 145.1557385298558,
+        "y": 69.08834228611455,
+        "z": -43.79943096278768
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 28,
+      "class_name": "Partial",
+      "confidence": 0.9186194539070129,
+      "bbox": [
+        200,
+        439,
+        281,
+        480
+      ],
+      "center_pixel": [
+        240,
+        459
+      ],
+      "depth_mm": 202.0,
+      "arm_coordinates": {
+        "x": 201.62828775332008,
+        "y": 71.15634395752816,
+        "z": -52.32724937828431
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 29,
+      "class_name": "Partial",
+      "confidence": 0.9117326736450195,
+      "bbox": [
+        380,
+        0,
+        471,
+        38
+      ],
+      "center_pixel": [
+        425,
+        19
+      ],
+      "depth_mm": 197.0,
+      "arm_coordinates": {
+        "x": 161.93345275782326,
+        "y": 26.44376896782537,
+        "z": -64.03464147393089
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 30,
+      "class_name": "Partial",
+      "confidence": 0.8836976885795593,
+      "bbox": [
+        532,
+        0,
+        610,
+        56
+      ],
+      "center_pixel": [
+        571,
+        28
+      ],
+      "depth_mm": 201.0,
+      "arm_coordinates": {
+        "x": 210.38957753952013,
+        "y": -71.65879481724747,
+        "z": -72.77968775891483
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 31,
+      "class_name": "Partial",
+      "confidence": 0.833821177482605,
+      "bbox": [
+        109,
+        431,
+        188,
+        480
+      ],
+      "center_pixel": [
+        148,
+        455
+      ],
+      "depth_mm": 201.0,
+      "arm_coordinates": {
+        "x": 171.49809527899495,
+        "y": -30.66662286747389,
+        "z": -48.4358231208187
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 32,
+      "class_name": "Partial",
+      "confidence": 0.768920361995697,
+      "bbox": [
+        269,
+        0,
+        349,
+        26
+      ],
+      "center_pixel": [
+        309,
+        13
+      ],
+      "depth_mm": 197.0,
+      "arm_coordinates": {
+        "x": 124.4087887133867,
+        "y": -75.5959750093765,
+        "z": -60.42617077788566
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 33,
+      "class_name": "Partial",
+      "confidence": 0.7610064148902893,
+      "bbox": [
+        128,
+        411,
+        213,
+        480
+      ],
+      "center_pixel": [
+        170,
+        445
+      ],
+      "depth_mm": 196.0,
+      "arm_coordinates": {
+        "x": 80.48559053797277,
+        "y": -35.95940397251266,
+        "z": -44.689108556896656
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -120.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 34,
+      "class_name": "Partial",
+      "confidence": 0.7335273027420044,
+      "bbox": [
+        203,
+        0,
+        276,
+        27
+      ],
+      "center_pixel": [
+        239,
+        13
+      ],
+      "depth_mm": 197.0,
+      "arm_coordinates": {
+        "x": 201.7703071277213,
+        "y": -375.6522410269494,
+        "z": -58.16233107924438
+      },
+      "camera_position": {
+        "x": 250.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 35,
+      "class_name": "Partial",
+      "confidence": 0.6990240216255188,
+      "bbox": [
+        145,
+        0,
+        225,
+        36
+      ],
+      "center_pixel": [
+        185,
+        18
+      ],
+      "depth_mm": 192.0,
+      "arm_coordinates": {
+        "x": 85.95237509648729,
+        "y": 27.441256850890376,
+        "z": -51.31018706584504
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": 80.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 36,
+      "class_name": "Partial",
+      "confidence": 0.6233810186386108,
+      "bbox": [
+        444,
+        20,
+        478,
+        59
+      ],
+      "center_pixel": [
+        461,
+        39
+      ],
+      "depth_mm": 205.0,
+      "arm_coordinates": {
+        "x": -25.387261836562764,
+        "y": -369.1769721398696,
+        "z": -73.04275589448628
+      },
+      "camera_position": {
+        "x": -50.0,
+        "y": -320.0,
+        "z": 150.0
+      }
+    },
+    {
+      "object_id": 37,
+      "class_name": "Partial",
+      "confidence": 0.6184018850326538,
+      "bbox": [
+        120,
+        0,
+        201,
+        15
+      ],
+      "center_pixel": [
+        160,
+        7
+      ],
+      "depth_mm": 193.0,
+      "arm_coordinates": {
+        "x": 77.68673914511311,
+        "y": -76.3775327787182,
+        "z": -51.7723083048557
+      },
+      "camera_position": {
+        "x": 150.0,
+        "y": -20.0,
         "z": 150.0
       }
     }
-  ]
+  ],
+  "detected_plates": []
 }
