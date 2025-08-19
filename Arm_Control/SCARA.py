@@ -47,12 +47,12 @@ PULSE_J6 = 88.889
 
 ORIGIN_X = 96.979
 ORIGIN_Y = 70.459
-ORIGIN_Z = 200
+ORIGIN_Z = 330
 
 # Positive is CW
 ORIGIN_J1 = 109
 ORIGIN_J2 = -146
-ORIGIN_J3 = 200
+ORIGIN_J3 = 330
 ORIGIN_J4 = 0
 
 CUR_X = ORIGIN_X
@@ -71,12 +71,17 @@ LENGTH_J3 = 200
 EXTENSION_SUCTION_LENGTH = 45   # mm from J4 to suction cup center
 EXTENSION_CAMERA_LENGTH = 140   # mm from J4 to camera center
 
+CAMERA_Z_OFFSET = -48
+CAMERA_X_OFFSET = -17.5     # D435i Left Imager offset from Centerline
+SUCTION_Z_OFFSET_CONTACT = -87 # @ Height of contact
+SUCTION_Z_OFFSET_SUCTION = -83 #　@ Height of suction
+
 LIMIT_J1_MAX = 109
 LIMIT_J1_MIN = -109
 LIMIT_J2_MAX = 146
 LIMIT_J2_MIN = -146
-LIMIT_J3_MAX = 200
-LIMIT_J3_MIN = 6
+LIMIT_J3_MAX = 330
+LIMIT_J3_MIN = 136
 LIMIT_J4_MAX = 180
 LIMIT_J4_MIN = -180
 
@@ -160,7 +165,7 @@ def get_suction_cup_position() -> tuple[float, float, float]:
     # Suction cup position
     suction_x = CUR_X + EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
     suction_y = CUR_Y + EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
-    suction_z = CUR_Z  # Same height as end effector
+    suction_z = CUR_Z + SUCTION_Z_OFFSET_CONTACT
     
     return (suction_x, suction_y, suction_z)
 
@@ -180,7 +185,7 @@ def get_camera_position() -> tuple[float, float, float]:
     # Camera position (points in the direction of the extension arm)
     camera_x = CUR_X + EXTENSION_CAMERA_LENGTH * math.cos(extension_rad)
     camera_y = CUR_Y + EXTENSION_CAMERA_LENGTH * math.sin(extension_rad)
-    camera_z = CUR_Z  # Same height as end effector
+    camera_z = CUR_Z + CAMERA_Z_OFFSET
     
     return (camera_x, camera_y, camera_z)
 
