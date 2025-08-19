@@ -16,15 +16,11 @@ import pyrealsense2 as rs
 from dataclasses import dataclass
 import math
 
-# Add parent directory to path for imports
-sys.path.append(os.path.dirname(os.path.abspath(__file__)))
+# Ensure project root (parent of this directory) is in path for importing Arm_Control
+sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
 
-# Lazy imports to avoid opening serial on module import
+# Lazy import holder for real SCARA control
 scara_control = None
-try:
-    from Arm_Control.SCARA_Simulator import SCARA
-except ImportError:
-    SCARA = None
 
 @dataclass
 class CameraIntrinsics:
@@ -117,23 +113,17 @@ class CameraCalibrator:
             raise
     
     def _initialize_arm(self):
-        """Initialize SCARA arm"""
+        """Initialize SCARA arm (real hardware only)"""
+        global scara_control
         try:
-            if scara_control is not None:
-                # Try to use real SCARA (function-based)
-                print("Using real SCARA arm control")
-                self.arm = None  # We'll call functions directly
-                self.is_real_arm = True
-            else:
-                # Fall back to simulator
-                self.arm = SCARA()
-                self.is_real_arm = False
-                print("SCARA simulator initialized successfully")
+            import Arm_Control.SCARA as scara_control
+            if not scara_control.is_connected():
+                raise RuntimeError("SCARA robot not connected. Please power on and check the COM port in Arm_Control/SCARA.py")
+            print("Using real SCARA arm control")
+            self.arm = None
+            self.is_real_arm = True
         except Exception as e:
-            print(f"Warning: Arm initialization failed: {e}")
-            print("Running in simulation mode")
-            self.arm = SCARA()
-            self.is_real_arm = False
+            raise RuntimeError(f"Failed to initialize real SCARA arm: {e}")
     
     def get_frame(self) -> Tuple[bool, np.ndarray, np.ndarray]:
         """Get color and depth frames from camera"""
@@ -353,11 +343,11 @@ class CameraCalibrator:
         
         # Define base camera target positions and a set of camera orientations to provide rotation diversity
         arm_positions = [
-            (250, -50, 200),
-            (250, 0, 200),
-            (250, -100, 200),
-            (300, -50, 200),
-            (200, -50, 200),
+            (250, -50, 280),
+            (250, 0, 280),
+            (250, -100, 280),
+            (300, -50, 280),
+            (200, -50, 280),
         ]
         # Use several camera directions (degrees)
         orientation_set = [-150.0, -120.0, -90.0, -60.0, -30.0, 0.0]
@@ -380,17 +370,8 @@ class CameraCalibrator:
             for j, ext_angle in enumerate(orientation_set):
                 print(f"Pose {captures+1}: base pos=({x:.1f},{y:.1f},{z:.1f}), cam dir={ext_angle:.1f}°")
                 try:
-                    if self.is_real_arm:
-                        # Lazy import to avoid serial on module import
-                        if scara_control is None:
-                            import Arm_Control.SCARA as scara_control
-                        scara_control.quick_camera(x, y, z, 10000, extension_angle=ext_angle)
-                        time.sleep(2.0)
-                    elif self.arm:
-                        self.arm.quick_camera(x, y, z, 10000, extension_angle=ext_angle)
-                        time.sleep(1.0)
-                    else:
-                        time.sleep(0.5)
+                    scara_control.quick_camera(x, y, z, 10000, extension_angle=ext_angle)
+                    time.sleep(2.0)
                 except Exception as e:
                     print(f"Movement error: {e}")
                     continue
@@ -460,34 +441,14 @@ class CameraCalibrator:
                 
                 # Build gripper (ee) -> base from SCARA current state
                 try:
-                    if scara_control is not None:
-                        # Lazy import to avoid serial on module import
-                        if scara_control is None:
-                            import Arm_Control.SCARA as scara_control
-                        j1 = scara_control.CUR_J1
-                        j2 = scara_control.CUR_J2
-                        j4 = scara_control.CUR_J4
-                        theta = math.radians(j1 + j2 + j4)
-                        R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
-                                         [math.sin(theta),  math.cos(theta), 0.0],
-                                         [0.0,              0.0,             1.0]], dtype=float)
-                        t_be = np.array([scara_control.CUR_X, scara_control.CUR_Y, scara_control.CUR_Z], dtype=float)
-                    elif self.arm is not None:
-                        # Simulator: use its API if available, otherwise approximate from direction
-                        cx, cy, cz = self.arm.get_camera_position()
-                        # ee is 140mm behind camera along -direction
-                        yaw_deg = self.arm.current_j4
-                        yaw_rad = math.radians(yaw_deg)
-                        ee_x = cx - 140.0 * math.cos(yaw_rad)
-                        ee_y = cy - 140.0 * math.sin(yaw_rad)
-                        ee_z = cz
-                        R_be = np.array([[math.cos(yaw_rad), -math.sin(yaw_rad), 0.0],
-                                         [math.sin(yaw_rad),  math.cos(yaw_rad), 0.0],
-                                         [0.0,                0.0,               1.0]], dtype=float)
-                        t_be = np.array([ee_x, ee_y, ee_z], dtype=float)
-                    else:
-                        print("  No arm interface available, skipping pose")
-                        continue
+                    j1 = scara_control.CUR_J1
+                    j2 = scara_control.CUR_J2
+                    j4 = scara_control.CUR_J4
+                    theta = math.radians(j1 + j2 + j4)
+                    R_be = np.array([[math.cos(theta), -math.sin(theta), 0.0],
+                                     [math.sin(theta),  math.cos(theta), 0.0],
+                                     [0.0,              0.0,             1.0]], dtype=float)
+                    t_be = np.array([scara_control.CUR_X, scara_control.CUR_Y, scara_control.CUR_Z], dtype=float)
                 except Exception as e:
                     print(f"  Pose extraction failed: {e}")
                     continue
