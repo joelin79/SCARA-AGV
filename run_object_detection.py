@@ -31,7 +31,7 @@ def main():
         # Plan scanning positions
         print("\nPlanning scanning positions...")
         detector.plan_scanning_positions(
-            scan_height=150.0,     # 150mm above table
+            scan_height=280.0,     # 150mm above table
             grid_spacing=100.0,    # 100mm between scan points
             camera_direction=-90.0  # Camera pointing down
         )

@@ -379,7 +379,7 @@ class ObjectDetectionSystem:
                                          extension_angle=camera_direction)
                 
                 # Wait for movement to complete
-                return self._wait_for_movement_completion(cam_x, cam_y, cam_z)
+                return True
             else:
                 # Simulation mode - just wait
                 time.sleep(2.0)  # Simulate movement time
@@ -387,52 +387,7 @@ class ObjectDetectionSystem:
         except Exception as e:
             print(f"Error moving camera: {e}")
             return False
-    
-    def _wait_for_movement_completion(self, target_x: float, target_y: float, target_z: float, 
-                                    timeout: float = 30.0, tolerance: float = 2.0) -> bool:
-        """
-        Wait for arm to reach target position within tolerance
-        
-        Args:
-            target_x, target_y, target_z: Target position
-            timeout: Maximum wait time in seconds
-            tolerance: Position tolerance in mm
-            
-        Returns:
-            True if position reached within timeout
-        """
-        if scara_control is None:
-            return True  # Simulation mode
-        
-        start_time = time.time()
-        
-        while time.time() - start_time < timeout:
-            try:
-                # Get current camera position
-                current_camera_pos = scara_control.get_camera_position()
-                
-                # Calculate distance to target
-                distance = math.sqrt(
-                    (current_camera_pos[0] - target_x) ** 2 +
-                    (current_camera_pos[1] - target_y) ** 2 +
-                    (current_camera_pos[2] - target_z) ** 2
-                )
-                
-                if distance <= tolerance:
-                    print(f"  ✓ Position reached (distance: {distance:.1f}mm)")
-                    return True
-                
-                # Wait a bit before checking again
-                time.sleep(0.2)
-                
-            except Exception as e:
-                print(f"  ⚠ Warning: Could not check position: {e}")
-                # If we can't check position, wait a conservative amount
-                time.sleep(2.0)
-                return True  # Assume movement completed
-        
-        print(f"  ⚠ Timeout waiting for position (distance: {distance:.1f}mm)")
-        return False
+
     
     def _capture_image(self) -> Optional[Tuple[np.ndarray, np.ndarray]]:
         """Capture color and depth images"""

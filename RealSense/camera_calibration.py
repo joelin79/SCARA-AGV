@@ -384,10 +384,10 @@ class CameraCalibrator:
                         # Lazy import to avoid serial on module import
                         if scara_control is None:
                             import Arm_Control.SCARA as scara_control
-                        scara_control.quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=ext_angle)
+                        scara_control.quick_camera(x, y, z, 10000, extension_angle=ext_angle)
                         time.sleep(2.0)
                     elif self.arm:
-                        self.arm.quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=ext_angle)
+                        self.arm.quick_camera(x, y, z, 10000, extension_angle=ext_angle)
                         time.sleep(1.0)
                     else:
                         time.sleep(0.5)

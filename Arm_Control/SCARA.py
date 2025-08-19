@@ -510,6 +510,7 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        z = z - CAMERA_Z_OFFSET
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -526,6 +527,7 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
+        z = z - CAMERA_Z_OFFSET
         
         if distance < EXTENSION_CAMERA_LENGTH:
             # Target is too close, move end effector directly
@@ -563,6 +565,7 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        z = z - CAMERA_Z_OFFSET
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -579,6 +582,7 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
+        z = z - CAMERA_Z_OFFSET
         
         if distance < EXTENSION_CAMERA_LENGTH:
             # Target is too close, move end effector directly
@@ -620,6 +624,7 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        z = z - SUCTION_Z_OFFSET_CONTACT
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -636,6 +641,7 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
+        z = z - SUCTION_Z_OFFSET_CONTACT
         
         if distance < EXTENSION_SUCTION_LENGTH:
             # Target is too close, move end effector directly
@@ -676,6 +682,7 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
+        z = z - SUCTION_Z_OFFSET_CONTACT
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -692,6 +699,7 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
+        z = z - SUCTION_Z_OFFSET_CONTACT
         
         if distance < EXTENSION_SUCTION_LENGTH:
             # Target is too close, move end effector directly
