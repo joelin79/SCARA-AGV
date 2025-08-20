@@ -716,10 +716,18 @@ class ObjectDetectionSystem:
                 R_bc = None
         if R_bc is None and extr_ok:
             R_bc = self.calibrator.extrinsics.rotation_matrix
-            t_bc = self.calibrator.extrinsics.translation_vector
+            # Use the live camera_position as translation to avoid stale/static t
+            t_bc = np.array([float(camera_position[0]), float(camera_position[1]), float(camera_position[2])], dtype=float)
         
         if R_bc is not None and t_bc is not None:
+            # Quick diagnostic: check Z orientation (expect near -1 for down-looking camera)
+            try:
+                print(f"[_pixel_to_arm_coordinates] R_bc[2,2] = {R_bc[2,2]:.3f}")
+            except Exception:
+                pass
             arm_point = t_bc + R_bc @ cam_point
+            arm_point[0] = arm_point[0] - 24.0
+            arm_point[2] = arm_point[2] - 48.0
             return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
         
         # Fallback (no calibration): simplified yaw mapping, reflect X already done above
@@ -733,9 +741,9 @@ class ObjectDetectionSystem:
         sin_y = math.sin(yaw_rad)
         world_dx = (cam_point[0]) * cos_y - (cam_point[1]) * sin_y
         world_dy = (cam_point[0]) * sin_y + (cam_point[1]) * cos_y
-        arm_x = cam_x + world_dx
+        arm_x = cam_x + world_dx - 24.0
         arm_y = cam_y + world_dy
-        arm_z = cam_z - cam_point[2]
+        arm_z = cam_z - cam_point[2] - 48.0
         return (float(arm_x), float(arm_y), float(arm_z))
 
     def debug_pixel_to_arm_coordinates(self,
@@ -841,6 +849,8 @@ class ObjectDetectionSystem:
                     t_bc_use = t_bc
 
                 arm_point = R_bc @ camera_point + t_bc_use
+                arm_point[0] = arm_point[0] - 24.0
+                arm_point[2] = arm_point[2] - 48.0
                 return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
             else:
                 # Simplified yaw-only mapping (camera assumed pointing down)
@@ -849,9 +859,9 @@ class ObjectDetectionSystem:
                 sin_yaw = math.sin(yaw_rad)
                 world_dx = cam_x * cos_yaw - cam_y * sin_yaw
                 world_dy = cam_x * sin_yaw + cam_y * cos_yaw
-                arm_x = cam_tx + world_dx
+                arm_x = cam_tx + world_dx - 24.0
                 arm_y = cam_ty + world_dy
-                arm_z = cam_tz - cam_z
+                arm_z = cam_tz - cam_z - 48.0
                 return float(arm_x), float(arm_y), float(arm_z)
         except Exception as e:
             print(f"[debug_pixel_to_arm_coordinates] Error: {e}")
@@ -1388,6 +1398,8 @@ def debug_pixel_to_arm_coordinates(j1_deg: float,
 
     # 6) Transform to arm/base frame
     arm_point = t_bc + R_bc @ cam_point
+    arm_point[0] = arm_point[0] - 24.0
+    arm_point[2] = arm_point[2] - 48.0
     return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
 
 
