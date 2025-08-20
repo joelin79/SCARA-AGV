@@ -715,13 +715,10 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
 def delay(s):
     send_commands([f"G4 T{s}"])
 
-def section_power(v: bool):
-    if v: send_commands(["G130 V1"])
-    else: send_commands(["G130 V0"])
 
-def section_trigger(v: bool):
-    if v: send_commands(["G131 V1"])
-    else: send_commands(["G131 V0"])
+def suction_trigger(v: bool):
+    if v: send_commands(["M134 V1"])
+    else: send_commands(["M134 V0"])
 
 # 回原點      NOTE: 會重設原點設置 (相當於執行 M368)
 def home(x=None, y=None, z=None):
