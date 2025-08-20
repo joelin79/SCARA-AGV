@@ -34,6 +34,7 @@ class ObjectVisualizer3D:
         """
         self.figsize = figsize
         self.objects = []
+        self.plates: List[Dict] = []
         self.class_colors = {}
         self.color_palette = sns.color_palette("husl", 10)
         
@@ -52,6 +53,7 @@ class ObjectVisualizer3D:
                 data = json.load(f)
             
             normalized_objects = []
+            normalized_plates = []
             
             # Legacy schema: { "objects": [ ... ] }
             if 'objects' in data and isinstance(data['objects'], list):
@@ -118,8 +120,57 @@ class ObjectVisualizer3D:
                 print(f"Unrecognized JSON schema in {filename}")
                 return False
             
+            # Parse plates if present (ObjectDetectionSystem schema)
+            if 'detected_plates' in data and isinstance(data['detected_plates'], list):
+                for raw_plate in data['detected_plates']:
+                    try:
+                        plate_id = raw_plate.get('plate_id', 'plate')
+                        center_raw = raw_plate.get('center_arm_coordinates') or {}
+                        center = [
+                            float(center_raw.get('x', 0.0) or 0.0),
+                            float(center_raw.get('y', 0.0) or 0.0),
+                            float(center_raw.get('z', 0.0) or 0.0),
+                        ]
+                        dims_raw = raw_plate.get('dimensions') or {}
+                        dimensions = [
+                            float(dims_raw.get('width_mm', 0.0) or 0.0),
+                            float(dims_raw.get('length_mm', 0.0) or 0.0),
+                        ]
+                        height_mm = float(raw_plate.get('height_mm', 0.0) or 0.0)
+                        orientation_deg = float(raw_plate.get('orientation_deg', 0.0) or 0.0)
+                        corners = raw_plate.get('corners_arm_coords') or raw_plate.get('corners_arm_coordinates')
+                        if isinstance(corners, list) and len(corners) >= 4:
+                            # Normalize to list of [x,y,z]
+                            corner_list = []
+                            for c in corners:
+                                if isinstance(c, (list, tuple)) and len(c) >= 3:
+                                    corner_list.append([float(c[0]), float(c[1]), float(c[2])])
+                            if len(corner_list) >= 4:
+                                normalized_plates.append({
+                                    'plate_id': plate_id,
+                                    'center': center,
+                                    'dimensions': dimensions,
+                                    'height_mm': height_mm,
+                                    'orientation_deg': orientation_deg,
+                                    'corners': corner_list[:4]
+                                })
+                        else:
+                            # Still store plate without corners
+                            normalized_plates.append({
+                                'plate_id': plate_id,
+                                'center': center,
+                                'dimensions': dimensions,
+                                'height_mm': height_mm,
+                                'orientation_deg': orientation_deg,
+                                'corners': []
+                            })
+                    except Exception:
+                        # Skip malformed plate entries gracefully
+                        continue
+
             self.objects = normalized_objects
-            print(f"Loaded {len(self.objects)} objects from {filename}")
+            self.plates = normalized_plates
+            print(f"Loaded {len(self.objects)} objects and {len(self.plates)} plate(s) from {filename}")
             return True
             
         except Exception as e:
@@ -170,6 +221,7 @@ class ObjectVisualizer3D:
                        show_camera_positions: bool = True,
                        show_confidence: bool = True,
                        show_labels: bool = True,
+                       show_plates: bool = True,
                        workspace_size: Tuple[float, float, float] = (400, 400, 300)) -> None:
         """
         Create 3D plot of detected objects with xy-plane projection
@@ -254,6 +306,26 @@ class ObjectVisualizer3D:
                 ax.text(x, y, z, f"ID:{i}\nZ:{z:.1f}", 
                        fontsize=8, ha='center', va='bottom')
         
+        # Draw detected plates (corners, edges, centers)
+        if show_plates and self.plates:
+            # Use a distinct colormap for plates
+            plate_colors = plt.cm.tab10(np.linspace(0, 1, max(1, len(self.plates))))
+            for i, plate in enumerate(self.plates):
+                color = plate_colors[i]
+                center = plate.get('center', [0.0, 0.0, 0.0])
+                corners = plate.get('corners', [])
+                # Plot center
+                ax.scatter(center[0], center[1], center[2], c=[color], s=150, marker='s', alpha=0.9)
+                ax.text(center[0], center[1], center[2] + 10, f"{plate.get('plate_id','Plate')}\n{plate.get('dimensions',[0,0])[0]:.0f}x{plate.get('dimensions',[0,0])[1]:.0f}mm",
+                        fontsize=8, ha='center', va='bottom')
+                # Plot corners and edges if available
+                if len(corners) >= 4:
+                    corner_arr = np.array(corners[:4])
+                    ax.scatter(corner_arr[:,0], corner_arr[:,1], corner_arr[:,2], c=[color], s=80, marker='o', alpha=0.8)
+                    # Connect edges in order 0-1-2-3-0
+                    order = [0,1,2,3,0]
+                    ax.plot(corner_arr[order,0], corner_arr[order,1], corner_arr[order,2], c=color, linewidth=2, alpha=0.9)
+
         # Show workspace boundaries
         if show_workspace:
             self._plot_workspace_boundaries(ax, workspace_size)
@@ -335,7 +407,7 @@ class ObjectVisualizer3D:
         
         ax.legend(handles=legend_elements, loc='upper right')
     
-    def plot_top_view(self, show_confidence: bool = True) -> None:
+    def plot_top_view(self, show_confidence: bool = True, show_plates: bool = True) -> None:
         """
         Create 2D top-down view of objects
         
@@ -380,6 +452,24 @@ class ObjectVisualizer3D:
                        (x, y), xytext=(5, 5), textcoords='offset points',
                        fontsize=8, ha='left', va='bottom')
         
+        # Draw plates as rectangles using their four corners (projected to XY)
+        if show_plates and self.plates:
+            import matplotlib.patches as patches
+            plate_colors = plt.cm.tab10(np.linspace(0, 1, max(1, len(self.plates))))
+            for i, plate in enumerate(self.plates):
+                color = plate_colors[i]
+                corners = plate.get('corners', [])
+                if len(corners) >= 4:
+                    # Order corners 0-1-2-3 and close
+                    xy = np.array(corners[:4])[:, :2]
+                    poly = patches.Polygon(xy, closed=True, fill=False, edgecolor=color, linewidth=2, alpha=0.9)
+                    ax.add_patch(poly)
+                    # Annotate center
+                    cx, cy, _ = plate.get('center', [0,0,0])
+                    ax.scatter([cx], [cy], c=[color], s=80, marker='s')
+                    ax.annotate(plate.get('plate_id','Plate'), (cx, cy), xytext=(5, 5), textcoords='offset points',
+                                fontsize=8, ha='left', va='bottom')
+
         # Setup plot
         ax.set_xlabel('X (mm)')
         ax.set_ylabel('Y (mm)')

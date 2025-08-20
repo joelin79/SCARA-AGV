@@ -35,8 +35,8 @@ def is_connected():
 RIGHT_HANDED_MODE = True
 
 HOME_FEEDRATE = 3000
-MAX_FEEDRATE = 10000
-MAX_ACC = 70
+MAX_FEEDRATE = 20000
+MAX_ACC = 500
 
 PULSE_J1 = 88.889
 PULSE_J2 = 88.889
@@ -814,7 +814,7 @@ def calibrate():
     set_home_order(0,1,2,3,4,5)
     set_home_feedrate(HOME_FEEDRATE,HOME_FEEDRATE,HOME_FEEDRATE,HOME_FEEDRATE,600,600)
     set_axis_dir(1,-1,-1,1,1,1)
-    set_max_feedrate(MAX_FEEDRATE-500,MAX_FEEDRATE,MAX_FEEDRATE,MAX_FEEDRATE,600,600)
+    set_max_feedrate(MAX_FEEDRATE,MAX_FEEDRATE,MAX_FEEDRATE,MAX_FEEDRATE,600,600)
     set_max_acc(MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC)
     send_commands(["M356 F0"])
     set_scara_mode(RIGHT_HANDED_MODE)

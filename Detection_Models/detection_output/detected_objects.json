@@ -1,64 +1,294 @@
 {
   "scan_metadata": {
-    "timestamp": "2025-08-20 15:03:19",
-    "total_objects": 2,
-    "total_plates": 0,
-    "scan_positions": 8,
+    "timestamp": "2025-08-20 16:55:08",
+    "total_objects": 10,
+    "total_plates": 1,
+    "scan_positions": 23,
     "model_path": "C:\\Users\\user\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
   },
   "detected_objects": [
     {
       "object_id": 0,
       "class_name": "Partial",
-      "confidence": 0.9503717422485352,
+      "confidence": 0.9556201696395874,
       "bbox": [
-        103,
-        408,
-        215,
-        479
+        464,
+        0,
+        578,
+        97
       ],
       "center_pixel": [
-        159,
-        443
+        521,
+        48
       ],
-      "depth_mm": 179.0,
+      "depth_mm": 172.0,
       "arm_coordinates": {
-        "x": 209.18050572396993,
-        "y": -73.3596378272047,
-        "z": 101.0
+        "x": 333.4210755340667,
+        "y": 62.23374807509973,
+        "z": 108.0
       },
       "camera_position": {
-        "x": 300.0,
-        "y": -150.0,
+        "x": 320.0,
+        "y": 100.0,
         "z": 280.0
       }
     },
     {
       "object_id": 1,
-      "class_name": "Cube",
-      "confidence": 0.8837697505950928,
+      "class_name": "Partial",
+      "confidence": 0.9189490675926208,
       "bbox": [
-        442,
-        77,
-        557,
-        195
+        540,
+        418,
+        640,
+        479
       ],
       "center_pixel": [
-        499,
-        136
+        590,
+        448
+      ],
+      "depth_mm": 177.0,
+      "arm_coordinates": {
+        "x": 355.15867438164645,
+        "y": 97.61540502179389,
+        "z": 103.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": 20.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 2,
+      "class_name": "Partial",
+      "confidence": 0.9106380343437195,
+      "bbox": [
+        452,
+        0,
+        555,
+        98
+      ],
+      "center_pixel": [
+        503,
+        49
       ],
       "depth_mm": 172.0,
       "arm_coordinates": {
-        "x": 207.33024649118786,
-        "y": -62.85586909548598,
+        "x": 328.33987747564174,
+        "y": -17.495635032342484,
         "z": 108.0
       },
       "camera_position": {
-        "x": 200.0,
-        "y": -50.0,
+        "x": 320.0,
+        "y": 20.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 3,
+      "class_name": "Partial",
+      "confidence": 0.8984687924385071,
+      "bbox": [
+        502,
+        413,
+        620,
+        480
+      ],
+      "center_pixel": [
+        561,
+        446
+      ],
+      "depth_mm": 178.0,
+      "arm_coordinates": {
+        "x": 347.02226186548035,
+        "y": 17.414892747030862,
+        "z": 102.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": -60.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 4,
+      "class_name": "Partial",
+      "confidence": 0.889873206615448,
+      "bbox": [
+        362,
+        410,
+        469,
+        479
+      ],
+      "center_pixel": [
+        415,
+        444
+      ],
+      "depth_mm": 180.0,
+      "arm_coordinates": {
+        "x": 304.4626969130162,
+        "y": 17.521618760583593,
+        "z": 100.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": -60.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 5,
+      "class_name": "Partial",
+      "confidence": 0.700735330581665,
+      "bbox": [
+        559,
+        316,
+        578,
+        346
+      ],
+      "center_pixel": [
+        568,
+        331
+      ],
+      "depth_mm": 262.0,
+      "arm_coordinates": {
+        "x": 54.40890993461541,
+        "y": 321.68999859334366,
+        "z": 18.0
+      },
+      "camera_position": {
+        "x": 0.0,
+        "y": 260.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 6,
+      "class_name": "Cube",
+      "confidence": 0.9007712602615356,
+      "bbox": [
+        533,
+        265,
+        640,
+        372
+      ],
+      "center_pixel": [
+        586,
+        318
+      ],
+      "depth_mm": 174.0,
+      "arm_coordinates": {
+        "x": 352.8128769713756,
+        "y": -20.858264572789558,
+        "z": 106.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": -60.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 7,
+      "class_name": "Cube",
+      "confidence": 0.88456791639328,
+      "bbox": [
+        379,
+        144,
+        485,
+        250
+      ],
+      "center_pixel": [
+        432,
+        197
+      ],
+      "depth_mm": 175.0,
+      "arm_coordinates": {
+        "x": 308.7336680470349,
+        "y": 24.35369713400219,
+        "z": 105.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": 20.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 8,
+      "class_name": "Cube",
+      "confidence": 0.8331019878387451,
+      "bbox": [
+        522,
+        144,
+        639,
+        263
+      ],
+      "center_pixel": [
+        580,
+        203
+      ],
+      "depth_mm": 172.0,
+      "arm_coordinates": {
+        "x": 350.29412938389237,
+        "y": 26.17858842237328,
+        "z": 108.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": 20.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 9,
+      "class_name": "Cube",
+      "confidence": 0.8171617984771729,
+      "bbox": [
+        431,
+        252,
+        543,
+        359
+      ],
+      "center_pixel": [
+        487,
+        305
+      ],
+      "depth_mm": 176.0,
+      "arm_coordinates": {
+        "x": 324.85643964084255,
+        "y": 55.68820713064498,
+        "z": 104.0
+      },
+      "camera_position": {
+        "x": 320.0,
+        "y": 20.0,
         "z": 280.0
       }
     }
   ],
-  "detected_plates": []
+  "detected_plates": [
+    {
+      "plate_id": "plate_1_0_3_2",
+      "center_arm_coordinates": {
+        "x": 179.55191570841873,
+        "y": -4.433032845660321,
+        "z": 99.25
+      },
+      "dimensions": {
+        "width_mm": 269.13418949980604,
+        "length_mm": 214.29516697646267
+      },
+      "height_mm": 180.75,
+      "area_mm2": 57674.156077935884,
+      "orientation_deg": -88.14909076638574,
+      "edge_marker_ids": [
+        1,
+        0,
+        3,
+        2
+      ]
+    }
+  ]
 }

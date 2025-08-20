@@ -124,6 +124,8 @@ class ObjectDetectionSystem:
         self.detected_plates: List = []  # Will store ArUco plate definitions
         self.scan_positions: List[Tuple[float, float, float]] = []
         self.current_scan_index = 0
+        # Accumulate ArUco markers across the entire scan
+        self.collected_aruco_markers: List = []
         
         # Generate timestamp for file naming (MMDDHHmm format)
         self.timestamp = time.strftime("%m%d%H%M")
@@ -296,6 +298,8 @@ class ObjectDetectionSystem:
         print(f"Starting workspace scan with {len(self.scan_positions)} positions...")
         
         total_detections = 0
+        # Reset ArUco accumulation for this scan
+        self.collected_aruco_markers = []
         
         for i, (cam_x, cam_y, cam_z) in enumerate(self.scan_positions):
             self.current_scan_index = i
@@ -309,7 +313,10 @@ class ObjectDetectionSystem:
             
             # Movement completion is now handled in _move_camera_to_position
             # Additional settling time for camera stabilization
-            time.sleep(3)
+            if self.current_scan_index == 0:
+                time.sleep(3)
+            else:
+                time.sleep(0.7)
             
             # Capture image
             image_data = self._capture_image()
@@ -333,6 +340,9 @@ class ObjectDetectionSystem:
                         self._pixel_to_arm_coordinates
                     )
                     print(f"  Found {len(aruco_markers)} ArUco markers")
+                    # Accumulate markers across all scan positions
+                    if aruco_markers:
+                        self.collected_aruco_markers.extend(aruco_markers)
                 except Exception as e:
                     print(f"  ⚠ ArUco detection failed: {e}")
                     aruco_markers = []
@@ -361,6 +371,12 @@ class ObjectDetectionSystem:
         
         # Process ArUco markers to define plates
         if self.aruco_detector is not None:
+            # Feed accumulated markers into the detector before processing plates
+            if self.collected_aruco_markers:
+                deduped_markers = self._deduplicate_aruco_markers(self.collected_aruco_markers)
+                if len(deduped_markers) != len(self.collected_aruco_markers):
+                    print(f"Consolidated ArUco markers: {len(self.collected_aruco_markers)} → {len(deduped_markers)}")
+                self.aruco_detector.detected_markers = deduped_markers
             self._process_aruco_plates()
         
         # Filter duplicates
@@ -374,7 +390,7 @@ class ObjectDetectionSystem:
         try:
             if scara_control is not None:
                 # Send movement command
-                scara_control.quick_camera(cam_x, cam_y, cam_z, 
+                scara_control.quick_camera(cam_x, cam_y, cam_z, 20000,
                                          maintain_extension_direction=True,
                                          extension_angle=camera_direction)
                 
@@ -966,6 +982,46 @@ class ObjectDetectionSystem:
         # Renumber objects
         for i, obj in enumerate(self.detected_objects):
             obj.object_id = i
+
+    def _deduplicate_aruco_markers(self, markers: List) -> List:
+        """Deduplicate ArUco markers accumulated over multiple frames.
+        Strategy:
+        - Group by marker_id
+        - Within each group, keep one representative per spatial cluster (in arm coords)
+        - Clustering uses a simple greedy threshold on 3D distance
+        """
+        if not markers:
+            return []
+
+        # Group by ID
+        by_id: Dict[int, List] = {}
+        for m in markers:
+            mid = int(getattr(m, 'marker_id', -1))
+            by_id.setdefault(mid, []).append(m)
+
+        def distance(a, b) -> float:
+            ax, ay, az = a.arm_coords
+            bx, by, bz = b.arm_coords
+            return math.sqrt((ax-bx)**2 + (ay-by)**2 + (az-bz)**2)
+
+        deduped: List = []
+        # Distance threshold in mm to consider same physical marker across frames
+        same_marker_distance_mm = 25.0
+
+        for mid, group in by_id.items():
+            representatives: List = []
+            for m in group:
+                placed = False
+                for r in representatives:
+                    if distance(m, r) < same_marker_distance_mm:
+                        # Optionally, keep the one closer to camera (lower depth) or just keep existing
+                        placed = True
+                        break
+                if not placed:
+                    representatives.append(m)
+            deduped.extend(representatives)
+
+        return deduped
     
     def _convert_numpy(self, obj):
         import numpy as np
@@ -1427,9 +1483,9 @@ def main():
         # Plan scanning positions
         detector.plan_scanning_positions(
             scan_height=280.0,  # 150mm above table
-            grid_spacing=100.0,  # 100mm between scan points
+            grid_spacing=80.0,  # 100mm between scan points
             camera_direction=-90.0,  # Camera pointing down
-            x_min=0.0, y_min=-150, y_max=150
+            x_min=0.0, y_min=-300, y_max=300
         )
         
         # Run the scan
