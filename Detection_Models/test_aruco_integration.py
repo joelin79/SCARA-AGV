@@ -6,6 +6,8 @@ Test script for ArUco plate detection integration
 import sys
 from pathlib import Path
 
+import cv2
+
 # Add project directories to path
 current_dir = Path(__file__).parent
 project_root = current_dir.parent
@@ -25,7 +27,7 @@ def test_aruco_detector():
     
     # Create detector
     detector = ArUcoPlateDetector(
-        aruco_dict_type=4,  # DICT_6X6_250
+        aruco_dict_type=cv2.aruco.DICT_6X6_250,
         marker_size_mm=30.0,
         expected_markers=4
     )
@@ -132,7 +134,7 @@ def test_workspace_calculation():
     plates = detector.define_plates_from_markers()
     
     if plates:
-        workspace_info = detector.get_workspace_info()
+        workspace_info = detector.get_plate_workspace_info()
         print(f"✓ Workspace info calculated:")
         print(f"  Main plate: {workspace_info['main_plate']['dimensions'][0]:.0f}x{workspace_info['main_plate']['dimensions'][1]:.0f}mm")
         print(f"  Bounds: X[{workspace_info['workspace_bounds']['x_min']:.0f}, {workspace_info['workspace_bounds']['x_max']:.0f}]")

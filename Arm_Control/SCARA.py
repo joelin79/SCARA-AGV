@@ -71,10 +71,11 @@ LENGTH_J3 = 200
 EXTENSION_SUCTION_LENGTH = 45   # mm from J4 to suction cup center
 EXTENSION_CAMERA_LENGTH = 140   # mm from J4 to camera center
 
-CAMERA_Z_OFFSET = -48
-CAMERA_X_OFFSET = -17.5     # D435i Left Imager offset from Centerline
-SUCTION_Z_OFFSET_CONTACT = -87 # @ Height of contact
-SUCTION_Z_OFFSET_SUCTION = -83 #　@ Height of suction
+EE2CAM_Z_OFFSET = -48
+SENSOR2CENTER_X_OFFSET = -17.5     # D435i Left Imager offset from Centerline
+EE2CUP_Z_OFFSET = -87 # @ Height of contact
+
+CUP_SUCTION_RANGE = 10 #　@ Height of suction
 
 LIMIT_J1_MAX = 109
 LIMIT_J1_MIN = -109
@@ -165,7 +166,7 @@ def get_suction_cup_position() -> tuple[float, float, float]:
     # Suction cup position
     suction_x = CUR_X + EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
     suction_y = CUR_Y + EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
-    suction_z = CUR_Z + SUCTION_Z_OFFSET_CONTACT
+    suction_z = CUR_Z + EE2CUP_Z_OFFSET
     
     return (suction_x, suction_y, suction_z)
 
@@ -185,7 +186,7 @@ def get_camera_position() -> tuple[float, float, float]:
     # Camera position (points in the direction of the extension arm)
     camera_x = CUR_X + EXTENSION_CAMERA_LENGTH * math.cos(extension_rad)
     camera_y = CUR_Y + EXTENSION_CAMERA_LENGTH * math.sin(extension_rad)
-    camera_z = CUR_Z + CAMERA_Z_OFFSET
+    camera_z = CUR_Z + EE2CAM_Z_OFFSET
     
     return (camera_x, camera_y, camera_z)
 
@@ -510,7 +511,7 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
-        z = z - CAMERA_Z_OFFSET
+        z = z - EE2CAM_Z_OFFSET
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -527,7 +528,7 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
-        z = z - CAMERA_Z_OFFSET
+        z = z - EE2CAM_Z_OFFSET
         
         if distance < EXTENSION_CAMERA_LENGTH:
             # Target is too close, move end effector directly
@@ -565,7 +566,7 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
-        z = z - CAMERA_Z_OFFSET
+        z = z - EE2CAM_Z_OFFSET
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -582,7 +583,7 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
-        z = z - CAMERA_Z_OFFSET
+        z = z - EE2CAM_Z_OFFSET
         
         if distance < EXTENSION_CAMERA_LENGTH:
             # Target is too close, move end effector directly
@@ -624,7 +625,7 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
-        z = z - SUCTION_Z_OFFSET_CONTACT
+        z = z - EE2CUP_Z_OFFSET
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -641,7 +642,7 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
-        z = z - SUCTION_Z_OFFSET_CONTACT
+        z = z - EE2CUP_Z_OFFSET
         
         if distance < EXTENSION_SUCTION_LENGTH:
             # Target is too close, move end effector directly
@@ -682,7 +683,7 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         
         # Calculate required J4 for maintaining extension direction
         i = calculate_j4_for_cartesian_direction(j1, j2, extension_angle)
-        z = z - SUCTION_Z_OFFSET_CONTACT
+        z = z - EE2CUP_Z_OFFSET
         
         # Check limits including extension arm collision
         check_joint_limits(j1, j2, z, i)
@@ -699,7 +700,7 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         dx = x - CUR_X
         dy = y - CUR_Y
         distance = math.sqrt(dx**2 + dy**2)
-        z = z - SUCTION_Z_OFFSET_CONTACT
+        z = z - EE2CUP_Z_OFFSET
         
         if distance < EXTENSION_SUCTION_LENGTH:
             # Target is too close, move end effector directly
@@ -717,8 +718,84 @@ def delay(s):
 
 
 def suction_trigger(v: bool):
-    if v: send_commands(["M134 V1"])
-    else: send_commands(["M134 V0"])
+    if v: send_commands(["M134 V0"])
+    else: send_commands(["M134 V1"])
+
+
+def suck_object(x: float, y: float, z: float, f: float = 3000, 
+                maintain_extension_direction: bool = True, extension_angle: float = -90.0):
+    """
+    Suck an object at the specified position and then move to maximum height.
+    
+    Args:
+        x, y, z: Target position for the suction cup
+        f: Feedrate for movement
+        maintain_extension_direction: If True, maintain extension arm direction
+        extension_angle: Target camera direction in cartesian coordinates
+    
+    Returns:
+        bool: True if successful, False otherwise
+    """
+    global CUR_X, CUR_Y, CUR_Z
+    
+    try:
+        suction_trigger(False)
+
+        approach_z = z + 50  # 10mm above target
+        quick_suction(x, y, approach_z, f=5000,
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
+
+        # 1. Move to position above the object (slightly higher for safety)
+        approach_z = z + 10  # 10mm above target
+        contact_z = z
+        suction_z = z - CUP_SUCTION_RANGE
+
+        quick_suction(x, y, approach_z, f=f, 
+                     maintain_extension_direction=maintain_extension_direction, 
+                     extension_angle=extension_angle)
+        quick_suction(x, y, contact_z, f=f-100,
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
+        time.sleep(10)
+        
+        # 2. Move down to contact the object
+        quick_suction(x, y, suction_z, f=f//2,  # Slower approach
+                     maintain_extension_direction=maintain_extension_direction, 
+                     extension_angle=extension_angle)
+        time.sleep(2)
+
+        # 3. Activate suction
+        print("Activating suction...")
+        suction_trigger(True)
+        time.sleep(0.5)  # Wait for suction to engage
+        
+        # 4. Move up to maximum height
+        print("Moving to maximum height...")
+        quick(x, y, LIMIT_J3_MAX, f=10000,
+                     maintain_extension_direction=maintain_extension_direction, 
+                     extension_angle=extension_angle)
+        
+        print(f"Object sucked successfully at ({x:.1f}, {y:.1f}, {z:.1f})")
+        print(f"Moved to maximum height Z={LIMIT_J3_MAX}")
+        return True
+        
+    except Exception as e:
+        print(f"Error during sucking operation: {e}")
+        # Deactivate suction on error
+        suction_trigger(False)
+        return False
+
+
+def release_object():
+    """
+    Release the currently held object by deactivating suction.
+    """
+    print("Releasing object...")
+    suction_trigger(False)
+    time.sleep(0.2)  # Wait for suction to disengage
+    print("Object released")
+
 
 # 回原點      NOTE: 會重設原點設置 (相當於執行 M368)
 def home(x=None, y=None, z=None):
@@ -852,7 +929,7 @@ def keyboard_control_pygame():
                 new_x = CUR_X + dx
                 new_y = CUR_Y + dy
                 try:
-                    j1, j2 = cartesian_to_angles(new_x, new_y, L1=LENGTH_J1, L2=LENGTH_J2)
+                    j1, j2 = cartesian_to_angles(new_x, new_y)
                     check_joint_limits(j1, j2, CUR_Z, CUR_J4)
                     quick(new_x, new_y, CUR_Z, maintain_extension_direction=True, extension_angle=-90.0)
                     CUR_X, CUR_Y = new_x, new_y

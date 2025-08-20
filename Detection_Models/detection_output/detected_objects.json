@@ -1,0 +1,64 @@
+{
+  "scan_metadata": {
+    "timestamp": "2025-08-20 15:03:19",
+    "total_objects": 2,
+    "total_plates": 0,
+    "scan_positions": 8,
+    "model_path": "C:\\Users\\user\\Documents\\GitHub\\SCARA-AGV\\yolo\\my_model\\my_model.pt"
+  },
+  "detected_objects": [
+    {
+      "object_id": 0,
+      "class_name": "Partial",
+      "confidence": 0.9503717422485352,
+      "bbox": [
+        103,
+        408,
+        215,
+        479
+      ],
+      "center_pixel": [
+        159,
+        443
+      ],
+      "depth_mm": 179.0,
+      "arm_coordinates": {
+        "x": 209.18050572396993,
+        "y": -73.3596378272047,
+        "z": 101.0
+      },
+      "camera_position": {
+        "x": 300.0,
+        "y": -150.0,
+        "z": 280.0
+      }
+    },
+    {
+      "object_id": 1,
+      "class_name": "Cube",
+      "confidence": 0.8837697505950928,
+      "bbox": [
+        442,
+        77,
+        557,
+        195
+      ],
+      "center_pixel": [
+        499,
+        136
+      ],
+      "depth_mm": 172.0,
+      "arm_coordinates": {
+        "x": 207.33024649118786,
+        "y": -62.85586909548598,
+        "z": 108.0
+      },
+      "camera_position": {
+        "x": 200.0,
+        "y": -50.0,
+        "z": 280.0
+      }
+    }
+  ],
+  "detected_plates": []
+}

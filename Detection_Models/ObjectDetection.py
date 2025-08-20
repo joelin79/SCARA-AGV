@@ -183,7 +183,7 @@ class ObjectDetectionSystem:
             try:
                 print("Initializing ArUco plate detector...")
                 self.aruco_detector = ArUcoPlateDetector(
-                    aruco_dict_type=cv2.aruco.DICT_6X6_250,
+                    aruco_dict_type=cv2.aruco.DICT_4X4_250,
                     marker_size_mm=30.0,
                     expected_markers=4
                 )
@@ -205,7 +205,9 @@ class ObjectDetectionSystem:
     
     def plan_scanning_positions(self, scan_height: float = 150.0, 
                               grid_spacing: float = 80.0,
-                              camera_direction: float = -90.0) -> List[Tuple[float, float, float]]:
+                              camera_direction: float = -90.0,
+                              x_min: float = -250, x_max: float = 450,
+                              y_min: float = -420, y_max: float = 420) -> List[Tuple[float, float, float]]:
         """
         Plan camera scanning positions to cover the entire workspace
         
@@ -221,8 +223,6 @@ class ObjectDetectionSystem:
         
         # Define workspace bounds (based on SCARA capabilities)
         # From the workspace analysis, typical reachable area for camera
-        x_min, x_max = -250, 450   # Conservative bounds to avoid collisions
-        y_min, y_max = -420, 420
         
         positions = []
         
@@ -726,8 +726,10 @@ class ObjectDetectionSystem:
             except Exception:
                 pass
             arm_point = t_bc + R_bc @ cam_point
+
+            #　MARK: force calibration
             arm_point[0] = arm_point[0] - 24.0
-            arm_point[2] = arm_point[2] - 48.0
+            arm_point[2] = camera_position[2] - depth_mm
             return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
         
         # Fallback (no calibration): simplified yaw mapping, reflect X already done above
@@ -1410,7 +1412,11 @@ def main():
     print("=" * 60)
     
     # Initialize system
-    detector = ObjectDetectionSystem()
+    detector = ObjectDetectionSystem(
+        model_path="yolo/my_model/my_model.pt",
+        use_calibration=True,
+        save_images=True  # Enable annotated image saving
+    )
     
     try:
         # Initialize all components
@@ -1420,9 +1426,10 @@ def main():
         
         # Plan scanning positions
         detector.plan_scanning_positions(
-            scan_height=150.0,     # 150mm above table
-            grid_spacing=80.0,     # 80mm between scan points
-            camera_direction=-90.0  # Camera pointing down
+            scan_height=280.0,  # 150mm above table
+            grid_spacing=100.0,  # 100mm between scan points
+            camera_direction=-90.0,  # Camera pointing down
+            x_min=0.0, y_min=-150, y_max=150
         )
         
         # Run the scan

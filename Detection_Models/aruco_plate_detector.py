@@ -43,7 +43,7 @@ class ArUcoPlateDetector:
     """
     
     def __init__(self, 
-                 aruco_dict_type: int = cv2.aruco.DICT_6X6_250,
+                 aruco_dict_type: int = cv2.aruco.DICT_4X4_250,
                  marker_size_mm: float = 30.0,
                  expected_markers: int = 4):
         """
@@ -58,9 +58,10 @@ class ArUcoPlateDetector:
         self.marker_size_mm = marker_size_mm
         self.expected_markers = expected_markers
         
-        # Initialize ArUco detector
+        # Initialize ArUco detector (OpenCV 4.7+ compatible)
         self.aruco_dict = cv2.aruco.getPredefinedDictionary(aruco_dict_type)
         self.aruco_params = cv2.aruco.DetectorParameters()
+        self.aruco_detector = cv2.aruco.ArucoDetector(self.aruco_dict, self.aruco_params)
         
         # Detection results
         self.detected_markers: List[ArUcoMarker] = []
@@ -91,10 +92,8 @@ class ArUcoPlateDetector:
         # Convert to grayscale for ArUco detection
         gray_image = cv2.cvtColor(color_image, cv2.COLOR_BGR2GRAY)
         
-        # Detect ArUco markers
-        corners, ids, rejected = cv2.aruco.detectMarkers(
-            gray_image, self.aruco_dict, parameters=self.aruco_params
-        )
+        # Detect ArUco markers (OpenCV 4.7+ compatible)
+        corners, ids, rejected = self.aruco_detector.detectMarkers(gray_image)
         
         detected_markers = []
         
