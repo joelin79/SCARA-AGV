@@ -787,14 +787,65 @@ def suck_object(x: float, y: float, z: float, f: float = 3000,
         return False
 
 
-def release_object():
+def release_object(x: float, y: float, z: float, f: float = 3000,
+                maintain_extension_direction: bool = True, extension_angle: float = -90.0):
     """
-    Release the currently held object by deactivating suction.
+    Suck an object at the specified position and then move to maximum height.
+
+    Args:
+        x, y, z: Target position for the suction cup
+        f: Feedrate for movement
+        maintain_extension_direction: If True, maintain extension arm direction
+        extension_angle: Target camera direction in cartesian coordinates
+
+    Returns:
+        bool: True if successful, False otherwise
     """
-    print("Releasing object...")
-    suction_trigger(False)
-    time.sleep(0.2)  # Wait for suction to disengage
-    print("Object released")
+    global CUR_X, CUR_Y, CUR_Z
+
+    try:
+        suction_trigger(False)
+
+        approach_z = z + 50  # 10mm above target
+        quick_suction(x, y, approach_z, f=5000,
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
+
+        # 1. Move to position above the object (slightly higher for safety)
+        approach_z = z + 10  # 10mm above target
+
+        release_z = z - CUP_SUCTION_RANGE
+
+        quick_suction(x, y, approach_z, f=f,
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
+
+        # 2. Move down to release the object
+        quick_suction(x, y, release_z, f=f // 2,  # Slower approach
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
+        time.sleep(2)
+
+        # 3. Activate suction
+        print("Deactivating suction...")
+        suction_trigger(False)
+        time.sleep(1)  # Wait for suction to engage
+
+        # 4. Move up to maximum height
+        print("Moving to maximum height...")
+        quick(x, y, LIMIT_J3_MAX, f=10000,
+              maintain_extension_direction=maintain_extension_direction,
+              extension_angle=extension_angle)
+
+        print(f"Object released successfully at ({x:.1f}, {y:.1f}, {z:.1f})")
+        print(f"Moved to maximum height Z={LIMIT_J3_MAX}")
+        return True
+
+    except Exception as e:
+        print(f"Error during release operation: {e}")
+        # Activate suction on error
+        suction_trigger(True)
+        return False
 
 
 # 回原點      NOTE: 會重設原點設置 (相當於執行 M368)
@@ -830,6 +881,20 @@ def calibrate():
     set_limit_detection(True)
     
     print("Extension arm calibration...")
+    print("Press Enter to calibrate, or type 'skip' to skip calibration if already calibrated...")
+    user_input = input().strip().lower()
+    
+    if user_input == 'skip':
+        print("Skipping calibration. Setting current J4 position to -53 degrees...")
+        # Set current J4 position as -53 degrees without moving
+        angle_mode()
+        send_commands([f"G92 I{-53}"])  # Set current J4 position as -53 degrees
+        CUR_J4 = -53
+        coordinate_mode()
+        print("Extension arm already calibrated at -53 degrees.")
+        print("Camera already points in -Y direction, suction cup in +Y direction.")
+        return  # Exit early, no need for second input
+    
     print("Ensure extension arm is parallel to J2 arm before proceeding.")
     input("Press Enter when extension arm is properly aligned...")
     
