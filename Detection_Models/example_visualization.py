@@ -156,11 +156,11 @@ def demonstrate_with_real_data():
         # Create visualizer
         visualizer = ObjectVisualizer3D()
         
-        base_dir = Path(__file__).parent.parent
+        base_dir = Path(__file__).parent
         
         # Try to load from various possible files
         possible_files = [
-            base_dir / "detection_output" /"detected_objects.json",
+            base_dir / "detection_output" / "detected_objects.json",
         ]
         
         loaded = False
