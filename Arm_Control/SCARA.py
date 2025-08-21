@@ -35,8 +35,9 @@ def is_connected():
 RIGHT_HANDED_MODE = True
 
 HOME_FEEDRATE = 3000
-MAX_FEEDRATE = 20000
+MAX_FEEDRATE = 10000
 MAX_ACC = 500
+SLOW_DIST = 10
 
 PULSE_J1 = 88.889
 PULSE_J2 = 88.889
@@ -772,9 +773,15 @@ def suck_object(x: float, y: float, z: float, f: float = 3000,
         
         # 4. Move up to maximum height
         print("Moving to maximum height...")
-        quick(x, y, LIMIT_J3_MAX, f=10000,
+        quick_suction(x, y, suction_z + SLOW_DIST, f=1000,
+              maintain_extension_direction=maintain_extension_direction,
+              extension_angle=extension_angle)
+        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET - SLOW_DIST, f=5000,
                      maintain_extension_direction=maintain_extension_direction, 
                      extension_angle=extension_angle)
+        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET, f=1000,
+              maintain_extension_direction=maintain_extension_direction,
+              extension_angle=extension_angle)
         
         print(f"Object sucked successfully at ({x:.1f}, {y:.1f}, {z:.1f})")
         print(f"Moved to maximum height Z={LIMIT_J3_MAX}")
@@ -804,7 +811,6 @@ def release_object(x: float, y: float, z: float, f: float = 3000,
     global CUR_X, CUR_Y, CUR_Z
 
     try:
-        suction_trigger(False)
 
         approach_z = z + 50  # 10mm above target
         quick_suction(x, y, approach_z, f=5000,
@@ -824,7 +830,7 @@ def release_object(x: float, y: float, z: float, f: float = 3000,
         quick_suction(x, y, release_z, f=f // 2,  # Slower approach
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
-        time.sleep(2)
+        time.sleep(10)
 
         # 3. Activate suction
         print("Deactivating suction...")
@@ -833,9 +839,17 @@ def release_object(x: float, y: float, z: float, f: float = 3000,
 
         # 4. Move up to maximum height
         print("Moving to maximum height...")
-        quick(x, y, LIMIT_J3_MAX, f=10000,
+        quick_suction(x, y, release_z + SLOW_DIST, f=1000,
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
+        time.sleep(0.1)
+        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET - SLOW_DIST, f=5000,
               maintain_extension_direction=maintain_extension_direction,
               extension_angle=extension_angle)
+        time.sleep(0.1)
+        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET, f=1000,
+                      maintain_extension_direction=maintain_extension_direction,
+                      extension_angle=extension_angle)
 
         print(f"Object released successfully at ({x:.1f}, {y:.1f}, {z:.1f})")
         print(f"Moved to maximum height Z={LIMIT_J3_MAX}")
@@ -862,7 +876,7 @@ def calibrate():
     
     set_steps_per_unit(PULSE_J1, PULSE_J2, PULSE_J3, PULSE_J4,PULSE_J5, PULSE_J6)
     set_home_dir(1,-1,1,1,1,1)
-    set_home_order(0,1,2,3,4,5)
+    set_home_order(2,1,0,3,4,5)
     set_home_feedrate(HOME_FEEDRATE,HOME_FEEDRATE,HOME_FEEDRATE,HOME_FEEDRATE,600,600)
     set_axis_dir(1,-1,-1,1,1,1)
     set_max_feedrate(MAX_FEEDRATE,MAX_FEEDRATE,MAX_FEEDRATE,MAX_FEEDRATE,600,600)

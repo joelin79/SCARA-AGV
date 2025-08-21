@@ -32,7 +32,7 @@ class PlateDefinition:
     corners_arm_coords: List[Tuple[float, float, float]]  # 4 corners in arm coordinates
     center_arm_coords: Tuple[float, float, float]  # Plate center in arm coordinates
     dimensions: Tuple[float, float]  # Width and length in mm
-    height_mm: float  # Plate height (average depth at markers)
+    height_mm: float  # Plate height
     area_mm2: float  # Plate surface area
     orientation_deg: float  # Plate orientation relative to arm X-axis
 
@@ -208,7 +208,7 @@ class ArUcoPlateDetector:
             area_mm2 = width_mm * length_mm
             
             # Calculate height (average depth at markers)
-            height_mm = np.mean([marker.depth_mm for marker in markers])
+            height_mm = np.mean([marker.arm_coords[2] for marker in markers])
             
             # Calculate orientation relative to arm X-axis
             orientation_deg = self._calculate_plate_orientation(corners_arm_coords)

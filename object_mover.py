@@ -21,7 +21,7 @@ import math
 # Try to import SCARA control
 try:
     sys.path.append(str(Path(__file__).parent / "Arm_Control"))
-    from SCARA import quick, quick_suction, release_object, suck_object, get_camera_position, get_suction_cup_position
+    from SCARA import *
     SCARA_AVAILABLE = True
 except ImportError:
     print("⚠ SCARA control not available - running in simulation mode")
@@ -288,7 +288,7 @@ class ObjectMover:
         # Calculate destination position (center of destination plate)
         dest_x = dest_plate_data["center"]["x"]
         dest_y = dest_plate_data["center"]["y"]
-        dest_z = dest_plate_data["height"] + 10  # 10mm above plate surface
+        dest_z = dest_plate_data["height"] + 50
         
         if SCARA_AVAILABLE:
             try:
@@ -302,6 +302,8 @@ class ObjectMover:
                 if success:
                     # Move to destination and release
                     print("   Moving to destination...")
+                    quick_suction(dest_x, dest_y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET)
+                    time.sleep(2)
                     release_object(dest_x, dest_y, dest_z)
                     print("   ✅ Object moved successfully")
                 else:
@@ -407,3 +409,4 @@ def main():
 
 if __name__ == "__main__":
     main()
+
