@@ -316,7 +316,7 @@ class ObjectDetectionSystem:
             if self.current_scan_index == 0:
                 time.sleep(3)
             else:
-                time.sleep(0.7)
+                time.sleep(0.9)
             
             # Capture image
             image_data = self._capture_image()

@@ -151,7 +151,8 @@ class ArUcoPlateDetector:
     
     def _group_markers_for_plates(self) -> List[List[ArUcoMarker]]:
         """
-        Group markers that could form a plate based on spatial proximity
+        Group markers sequentially: 0-3, 4-7, 8-11, etc.
+        Only complete groups of 4 markers form plates.
         
         Returns:
             List of marker groups, each potentially forming a plate
@@ -159,30 +160,16 @@ class ArUcoPlateDetector:
         if len(self.detected_markers) < self.expected_markers:
             return []
         
-        # Simple grouping: find markers within max_distance of each other
         groups = []
-        used_markers = set()
         
-        for i, marker1 in enumerate(self.detected_markers):
-            if i in used_markers:
-                continue
-                
-            current_group = [marker1]
-            used_markers.add(i)
-            
-            # Find nearby markers
-            for j, marker2 in enumerate(self.detected_markers):
-                if j in used_markers:
-                    continue
-                    
-                distance = self._calculate_3d_distance(marker1.arm_coords, marker2.arm_coords)
-                if distance <= self.max_marker_distance_mm:
-                    current_group.append(marker2)
-                    used_markers.add(j)
-            
-            # Only keep groups with expected number of markers
-            if len(current_group) == self.expected_markers:
-                groups.append(current_group)
+        # Sort markers by ID first for consistent grouping
+        sorted_markers = sorted(self.detected_markers, key=lambda m: m.marker_id)
+        
+        # Group every 4 markers together
+        for i in range(0, len(sorted_markers), 4):
+            group = sorted_markers[i:i+4]
+            if len(group) == 4:  # Only add complete groups
+                groups.append(group)
         
         return groups
     
