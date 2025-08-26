@@ -443,6 +443,7 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-9
         # Update current position
         CUR_X, CUR_Y, CUR_Z = x, y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        await_arrival()
         
     else:
         # Standard movement without extension arm control
@@ -479,6 +480,7 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         # Update current position
         CUR_X, CUR_Y, CUR_Z = x, y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        await_arrival()
         
     else:
         # Standard movement without extension arm control
@@ -523,6 +525,7 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -578,6 +581,7 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -637,6 +641,7 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -695,6 +700,7 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
+        await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -712,10 +718,6 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
             end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
             end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
             linear(end_x, end_y, z, f, maintain_extension_direction=False)
-
-# 延遲
-def delay(s):
-    send_commands([f"G4 T{s}"])
 
 
 def suction_trigger(v: bool):
@@ -755,16 +757,15 @@ def suck_object(x: float, y: float, z: float, f: float = 3000,
         quick_suction(x, y, approach_z, f=f, 
                      maintain_extension_direction=maintain_extension_direction, 
                      extension_angle=extension_angle)
+
         quick_suction(x, y, contact_z, f=f-100,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
-        time.sleep(2)
         
         # 2. Move down to contact the object
         quick_suction(x, y, suction_z, f=f//2,  # Slower approach
                      maintain_extension_direction=maintain_extension_direction, 
                      extension_angle=extension_angle)
-        time.sleep(5)
 
         # 3. Activate suction
         print("Activating suction...")
@@ -932,6 +933,75 @@ def send_commands(commands):
         return True
     except Exception as e:
         print(f"✗ Error sending commands: {e}")
+        return False
+
+def await_arrival():
+    """
+    Send M143 command and wait for "Arrival position." response from the robot.
+    This function replaces time.sleep() calls by waiting for actual robot completion.
+    
+    Returns:
+        bool: True if successful, False if timeout or error occurs
+    """
+    if ser is None:
+        print("⚠ No serial connection - cannot await robot response")
+        return False
+    
+    try:
+        # Send M143 command to request arrival status
+        ser.write(b'M143\n')
+        print("Sent: M143")
+        
+        # Wait for "Arrival position." response
+        timeout = 30.0  # 30 second timeout
+        start_time = time.time()
+        
+        while time.time() - start_time < timeout:
+            if ser.in_waiting > 0:
+                response = ser.readline().decode('utf-8', errors='ignore').strip()
+                print(f"Received: {response}")
+                
+                if "Arrival position." in response:
+                    print("✓ Robot arrived at target position")
+                    return True
+                elif "Error" in response or "Alarm" in response:
+                    print(f"✗ Robot error: {response}")
+                    return False
+            
+            time.sleep(0.01)  # Small delay to prevent busy waiting
+        
+        print("⚠ Timeout waiting for robot arrival response")
+        return False
+        
+    except Exception as e:
+        print(f"✗ Error during await: {e}")
+        return False
+
+def wait_for_movement(commands):
+    """
+    Send movement commands and wait for robot to arrive at target position.
+    This function replaces time.sleep() calls by waiting for actual robot completion.
+    
+    Args:
+        commands: List of G-code commands to send
+        
+    Returns:
+        bool: True if successful, False if timeout or error occurs
+    """
+    if ser is None:
+        print("⚠ No serial connection - cannot send commands")
+        return False
+    
+    try:
+        # Send the movement commands
+        if not send_commands(commands):
+            return False
+        
+        # Wait for arrival
+        return await_arrival()
+        
+    except Exception as e:
+        print(f"✗ Error during movement wait: {e}")
         return False
 
 STEP_CART = 3  # mm step for cartesian movements
