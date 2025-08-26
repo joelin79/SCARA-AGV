@@ -323,19 +323,25 @@ class ObjectMover:
                 # Move to object position and pick it up
                 obj_pos = obj["arm_coordinates"]
                 print("   Picking up object...")
-                quick_suction(obj_pos["x"], obj_pos["y"], LIMIT_J3_MAX + EE2CUP_Z_OFFSET)
-                time.sleep(2)
+                set_max_acc(100, 100, 100, 100, 100, 100)
+                save_settings()
+                quick_suction(obj_pos["x"], obj_pos["y"], LIMIT_J3_MAX + EE2CUP_Z_OFFSET, f=10000)
+                time.sleep(0.5)
                 success = suck_object(obj_pos["x"], obj_pos["y"], obj_pos["z"])
                 
                 if success:
                     # Move to destination and release
                     print("   Moving to destination...")
                     quick_suction(dest_x, dest_y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET)
-                    time.sleep(3)
+                    time.sleep(0.5)
                     release_object(dest_x, dest_y, dest_z)
                     print("   ✅ Object moved successfully")
+                    set_max_acc(MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC)
+                    save_settings()
                 else:
                     print("   ❌ Failed to pick up object")
+                    set_max_acc(MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC)
+                    save_settings()
                     return False
                     
             except Exception as e:

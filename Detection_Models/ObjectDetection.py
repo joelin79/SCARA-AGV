@@ -313,10 +313,8 @@ class ObjectDetectionSystem:
             
             # Movement completion is now handled in _move_camera_to_position
             # Additional settling time for camera stabilization
-            if self.current_scan_index == 0:
-                time.sleep(3)
-            else:
-                time.sleep(0.9)
+
+            time.sleep(0.5)
             
             # Capture image
             image_data = self._capture_image()
@@ -393,7 +391,7 @@ class ObjectDetectionSystem:
         try:
             if scara_control is not None:
                 # Send movement command
-                scara_control.quick_camera(cam_x, cam_y, cam_z, 20000,
+                scara_control.quick_camera(cam_x, cam_y, cam_z, 30000,
                                          maintain_extension_direction=True,
                                          extension_angle=camera_direction)
                 
@@ -747,7 +745,8 @@ class ObjectDetectionSystem:
             arm_point = t_bc + R_bc @ cam_point
 
             #　MARK: force calibration
-            arm_point[0] = arm_point[0] - 14.0
+            arm_point[0] = arm_point[0] - 8
+            arm_point[1] = arm_point[1] - 5
             arm_point[2] = camera_position[2] - depth_mm
             return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
         
@@ -1434,6 +1433,8 @@ class ObjectDetectionSystem:
         """Clean up resources"""
         if self.camera:
             self.camera.release()
+        if scara_control:
+            scara_control.ser.close()
         print("Object detection system cleaned up")
 
 
@@ -1549,7 +1550,8 @@ def main():
         detector.plan_scanning_positions(
             scan_height=280.0,
             grid_spacing=80.0,
-            camera_direction=-90.0
+            camera_direction=-90.0,
+            y_max=0
         )
         
         # Run the scan
@@ -1586,7 +1588,7 @@ def main():
     finally:
         if scara_control is not None:
             try:
-                scara_control.quick(scara_control.ORIGIN_X, scara_control.ORIGIN_Y, scara_control.ORIGIN_Z)
+                scara_control.quick(scara_control.ORIGIN_X, scara_control.ORIGIN_Y, scara_control.ORIGIN_Z, wait=False)
             except Exception as e:
                 print(f"⚠ Warning: Could not return to origin: {e}")
         detector.cleanup()

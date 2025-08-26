@@ -35,7 +35,7 @@ def is_connected():
 RIGHT_HANDED_MODE = True
 
 HOME_FEEDRATE = 3000
-MAX_FEEDRATE = 10000
+MAX_FEEDRATE = 30000
 MAX_ACC = 500
 SLOW_DIST = 10
 
@@ -381,9 +381,9 @@ def set_axis_dir(x, y, z, i, j, k):
 def set_max_feedrate(x, y, z, i, j, k):
     send_commands([f"M203 X{x} Y{y} Z{z} I{i} J{j} K{k}"])
 
-# 設定最大加速度
-def set_max_acc(x, y, z, i, j, k):
-    send_commands([f"M201 X{x} Y{y} Z{z} I{i} J{j} K{k}"])
+# 設定最大加速度 j k 不會用到所以作廢
+def set_max_acc(x, y, z, i, j=0, k=0):
+    send_commands([f"M201 X{x} Y{y} Z{z} I{i} J{i} K{i}"])
 
 # 硬體儲存
 def save_settings():
@@ -414,7 +414,7 @@ def angle_mode():
 
 # ----- ACTIONS -----
 # 快速移動 (with automatic extension arm orientation)
-def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0, wait=True):
     """
     Quick movement with automatic extension arm control.
     
@@ -443,7 +443,8 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-9
         # Update current position
         CUR_X, CUR_Y, CUR_Z = x, y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
-        await_arrival()
+        if wait:
+            await_arrival()
         
     else:
         # Standard movement without extension arm control
@@ -451,7 +452,7 @@ def quick(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-9
         CUR_X, CUR_Y, CUR_Z = x, y, z
 
 # 線性移動 (with automatic extension arm orientation)
-def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0, wait=True):
     """
     Linear movement with automatic extension arm control.
     
@@ -480,7 +481,8 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         # Update current position
         CUR_X, CUR_Y, CUR_Z = x, y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
-        await_arrival()
+        if wait:
+            await_arrival()
         
     else:
         # Standard movement without extension arm control
@@ -488,7 +490,7 @@ def linear(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-
         CUR_X, CUR_Y, CUR_Z = x, y, z
 
 # Camera position movement functions
-def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=-90.0):
+def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_angle=-90.0, wait=True):
     """
     Quick movement to camera position with automatic extension arm control.
     
@@ -525,7 +527,8 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
-        await_arrival()
+        if wait:
+            await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -536,15 +539,15 @@ def quick_camera(x, y, z, f=10000, maintain_extension_direction=True, extension_
         
         if distance < EXTENSION_CAMERA_LENGTH:
             # Target is too close, move end effector directly
-            quick(x, y, z, f, maintain_extension_direction=False)
+            quick(x, y, z, f, maintain_extension_direction=False, wait=wait)
         else:
             # Calculate end effector position that would place camera at target
             camera_angle_rad = math.atan2(dy, dx)
             end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
             end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
-            quick(end_x, end_y, z, f, maintain_extension_direction=False)
+            quick(end_x, end_y, z, f, maintain_extension_direction=False, wait=wait)
 
-def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0, wait=True):
     """
     Linear movement to camera position with automatic extension arm control.
     
@@ -581,7 +584,8 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
-        await_arrival()
+        if wait:
+            await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -592,16 +596,16 @@ def linear_camera(x, y, z, f=3000, maintain_extension_direction=True, extension_
         
         if distance < EXTENSION_CAMERA_LENGTH:
             # Target is too close, move end effector directly
-            linear(x, y, z, f, maintain_extension_direction=False)
+            linear(x, y, z, f, maintain_extension_direction=False, wait=wait)
         else:
             # Calculate end effector position that would place camera at target
             camera_angle_rad = math.atan2(dy, dx)
             end_x = x - EXTENSION_CAMERA_LENGTH * math.cos(camera_angle_rad)
             end_y = y - EXTENSION_CAMERA_LENGTH * math.sin(camera_angle_rad)
-            linear(end_x, end_y, z, f, maintain_extension_direction=False)
+            linear(end_x, end_y, z, f, maintain_extension_direction=False, wait=wait)
 
 # Suction cup position movement functions
-def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0, wait=True):
     """
     Quick movement to suction cup position with automatic extension arm control.
     
@@ -641,7 +645,8 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
-        await_arrival()
+        if wait:
+            await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -652,15 +657,15 @@ def quick_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_
         
         if distance < EXTENSION_SUCTION_LENGTH:
             # Target is too close, move end effector directly
-            quick(x, y, z, f, maintain_extension_direction=False)
+            quick(x, y, z, f, maintain_extension_direction=False, wait=wait)
         else:
             # Calculate end effector position that would place suction cup at target
             suction_angle_rad = math.atan2(dy, dx)
             end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
             end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
-            quick(end_x, end_y, z, f, maintain_extension_direction=False)
+            quick(end_x, end_y, z, f, maintain_extension_direction=False, wait=wait)
 
-def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0):
+def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension_angle=-90.0, wait=True):
     """
     Linear movement to suction cup position with automatic extension arm control.
     
@@ -700,7 +705,8 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         # Update current position
         CUR_X, CUR_Y, CUR_Z = end_x, end_y, z
         CUR_J1, CUR_J2, CUR_J3, CUR_J4 = j1, j2, z, i
-        await_arrival()
+        if wait:
+            await_arrival()
         
     else:
         # For non-maintained direction, we need to calculate the optimal end effector position
@@ -711,13 +717,13 @@ def linear_suction(x, y, z, f=3000, maintain_extension_direction=True, extension
         
         if distance < EXTENSION_SUCTION_LENGTH:
             # Target is too close, move end effector directly
-            linear(x, y, z, f, maintain_extension_direction=False)
+            linear(x, y, z, f, maintain_extension_direction=False, wait=wait)
         else:
             # Calculate end effector position that would place suction cup at target
             suction_angle_rad = math.atan2(dy, dx)
             end_x = x - EXTENSION_SUCTION_LENGTH * math.cos(suction_angle_rad)
             end_y = y - EXTENSION_SUCTION_LENGTH * math.sin(suction_angle_rad)
-            linear(end_x, end_y, z, f, maintain_extension_direction=False)
+            linear(end_x, end_y, z, f, maintain_extension_direction=False, wait=wait)
 
 
 def suction_trigger(v: bool):
@@ -744,28 +750,14 @@ def suck_object(x: float, y: float, z: float, f: float = 3000,
     try:
         suction_trigger(False)
 
-        approach_z = z + 50  # 10mm above target
-        quick_suction(x, y, approach_z, f=5000,
-                      maintain_extension_direction=maintain_extension_direction,
-                      extension_angle=extension_angle)
+        set_max_acc(100,100,100,100,100,100)
+        save_settings()
 
-        # 1. Move to position above the object (slightly higher for safety)
-        approach_z = z + 10  # 10mm above target
-        contact_z = z
         suction_z = z - CUP_SUCTION_RANGE
 
-        quick_suction(x, y, approach_z, f=f, 
-                     maintain_extension_direction=maintain_extension_direction, 
-                     extension_angle=extension_angle)
-
-        quick_suction(x, y, contact_z, f=f-100,
+        quick_suction(x, y, suction_z, f=f,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
-        
-        # 2. Move down to contact the object
-        quick_suction(x, y, suction_z, f=f//2,  # Slower approach
-                     maintain_extension_direction=maintain_extension_direction, 
-                     extension_angle=extension_angle)
 
         # 3. Activate suction
         print("Activating suction...")
@@ -774,18 +766,14 @@ def suck_object(x: float, y: float, z: float, f: float = 3000,
         
         # 4. Move up to maximum height
         print("Moving to maximum height...")
-        quick_suction(x, y, suction_z + SLOW_DIST, f=1000,
-              maintain_extension_direction=maintain_extension_direction,
-              extension_angle=extension_angle)
-        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET - SLOW_DIST, f=5000,
-                     maintain_extension_direction=maintain_extension_direction, 
-                     extension_angle=extension_angle)
-        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET, f=1000,
+        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET, f=5000,
               maintain_extension_direction=maintain_extension_direction,
               extension_angle=extension_angle)
         
         print(f"Object sucked successfully at ({x:.1f}, {y:.1f}, {z:.1f})")
         print(f"Moved to maximum height Z={LIMIT_J3_MAX}")
+        set_max_acc(MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC)
+        save_settings()
         return True
         
     except Exception as e:
@@ -812,11 +800,8 @@ def release_object(x: float, y: float, z: float, f: float = 3000,
     global CUR_X, CUR_Y, CUR_Z
 
     try:
-
-        approach_z = z + 75
-        quick_suction(x, y, approach_z, f=5000,
-                      maintain_extension_direction=maintain_extension_direction,
-                      extension_angle=extension_angle)
+        set_max_acc(100,100,100,100,100,100)
+        save_settings()
 
         # 1. Move to position above the object (slightly higher for safety)
         release_z = z + 50  # 10mm above target
@@ -825,29 +810,21 @@ def release_object(x: float, y: float, z: float, f: float = 3000,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
 
-        time.sleep(5)
-
         # 3. Activate suction
         print("Deactivating suction...")
         suction_trigger(False)
-        time.sleep(1)  # Wait for suction to engage
+        time.sleep(0.5)  # Wait for suction to engage
 
         # 4. Move up to maximum height
         print("Moving to maximum height...")
-        quick_suction(x, y, release_z + SLOW_DIST, f=1000,
-                      maintain_extension_direction=maintain_extension_direction,
-                      extension_angle=extension_angle)
-        time.sleep(0.1)
-        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET - SLOW_DIST, f=5000,
-              maintain_extension_direction=maintain_extension_direction,
-              extension_angle=extension_angle)
-        time.sleep(0.1)
-        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET, f=1000,
+        quick_suction(x, y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
 
         print(f"Object released successfully at ({x:.1f}, {y:.1f}, {z:.1f})")
         print(f"Moved to maximum height Z={LIMIT_J3_MAX}")
+        set_max_acc(MAX_ACC, MAX_ACC, MAX_ACC, MAX_ACC)
+        save_settings()
         return True
 
     except Exception as e:
