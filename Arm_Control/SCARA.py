@@ -76,7 +76,7 @@ EE2CAM_Z_OFFSET = -48
 SENSOR2CENTER_X_OFFSET = -17.5     # D435i Left Imager offset from Centerline
 EE2CUP_Z_OFFSET = -87 # @ Height of contact
 
-CUP_SUCTION_RANGE = 10 #　@ Height of suction
+CUP_SUCTION_RANGE = 13 #　@ Height of suction
 
 LIMIT_J1_MAX = 109
 LIMIT_J1_MIN = -109
@@ -758,13 +758,13 @@ def suck_object(x: float, y: float, z: float, f: float = 3000,
         quick_suction(x, y, contact_z, f=f-100,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
-        time.sleep(10)
+        time.sleep(2)
         
         # 2. Move down to contact the object
         quick_suction(x, y, suction_z, f=f//2,  # Slower approach
                      maintain_extension_direction=maintain_extension_direction, 
                      extension_angle=extension_angle)
-        time.sleep(2)
+        time.sleep(5)
 
         # 3. Activate suction
         print("Activating suction...")
@@ -812,25 +812,19 @@ def release_object(x: float, y: float, z: float, f: float = 3000,
 
     try:
 
-        approach_z = z + 50  # 10mm above target
+        approach_z = z + 75
         quick_suction(x, y, approach_z, f=5000,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
 
         # 1. Move to position above the object (slightly higher for safety)
-        approach_z = z + 10  # 10mm above target
+        release_z = z + 50  # 10mm above target
 
-        release_z = z - CUP_SUCTION_RANGE
-
-        quick_suction(x, y, approach_z, f=f,
+        quick_suction(x, y, release_z, f=f,
                       maintain_extension_direction=maintain_extension_direction,
                       extension_angle=extension_angle)
 
-        # 2. Move down to release the object
-        quick_suction(x, y, release_z, f=f // 2,  # Slower approach
-                      maintain_extension_direction=maintain_extension_direction,
-                      extension_angle=extension_angle)
-        time.sleep(10)
+        time.sleep(5)
 
         # 3. Activate suction
         print("Deactivating suction...")

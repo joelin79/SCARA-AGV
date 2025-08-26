@@ -87,7 +87,9 @@ class ObjectMover:
                 "dimensions": plate["dimensions"],
                 "height": plate["height_mm"],
                 "edge_markers": edge_markers,
-                "objects": []
+                "objects": [],
+                # Optional: exact corners if provided by detection JSON
+                "corners_arm_coords": plate.get("corners_arm_coords")
             }
             
             # Store the mapping for reference
@@ -97,35 +99,59 @@ class ObjectMover:
             }
     
     def assign_objects_to_plates(self):
-        """Assign detected objects to their respective plates based on position"""
+        """Assign detected objects strictly to plates only if inside the plate boundary."""
         for obj in self.objects:
             obj_pos = obj["arm_coordinates"]
-            assigned_plate = self._find_nearest_plate(obj_pos)
+            assigned_plate = self._find_containing_plate(obj_pos)
             
-            if assigned_plate:
+            if assigned_plate is not None:
                 self.plates[assigned_plate]["objects"].append(obj)
                 obj["assigned_plate"] = assigned_plate
             else:
                 obj["assigned_plate"] = None
-                print(f"⚠ Object {obj['object_id']} ({obj['class_name']}) not assigned to any plate")
+                print(f"⚠ Object {obj['object_id']} ({obj['class_name']}) is not inside any plate")
     
-    def _find_nearest_plate(self, obj_pos: Dict) -> Optional[int]:
-        """Find the nearest plate to an object position"""
-        min_distance = float('inf')
-        nearest_plate = None
-        
+    def _find_containing_plate(self, obj_pos: Dict) -> Optional[int]:
+        """Return the plate number if the object's XY is inside that plate's boundary; else None."""
+        ox = float(obj_pos["x"]) ; oy = float(obj_pos["y"]) 
         for plate_num, plate_data in self.plates.items():
-            plate_center = plate_data["center"]
-            distance = math.sqrt(
-                (obj_pos["x"] - plate_center["x"])**2 + 
-                (obj_pos["y"] - plate_center["y"])**2
-            )
-            
-            if distance < min_distance:
-                min_distance = distance
-                nearest_plate = plate_num
-        
-        return nearest_plate
+            # Prefer exact polygon check if corners are present in the JSON
+            try:
+                corners = plate_data.get("corners_arm_coords")
+                if corners and len(corners) == 4:
+                    if self._point_in_convex_quad(ox, oy, [(c[0], c[1]) for c in corners]):
+                        return plate_num
+            except Exception:
+                pass
+            # Fallback: approximate axis-aligned rectangle using center + dimensions
+            try:
+                cx = float(plate_data["center"]["x"]) ; cy = float(plate_data["center"]["y"]) 
+                w = float(plate_data["dimensions"]["width_mm"]) ; l = float(plate_data["dimensions"]["length_mm"]) 
+                half_w = w / 2.0 ; half_l = l / 2.0
+                if (cx - half_w) <= ox <= (cx + half_w) and (cy - half_l) <= oy <= (cy + half_l):
+                    return plate_num
+            except Exception:
+                pass
+        return None
+
+    def _point_in_convex_quad(self, px: float, py: float, quad_xy: List[Tuple[float, float]]) -> bool:
+        same_sign = None
+        for i in range(4):
+            x1, y1 = quad_xy[i]
+            x2, y2 = quad_xy[(i + 1) % 4]
+            ex = x2 - x1
+            ey = y2 - y1
+            vx = px - x1
+            vy = py - y1
+            cross = ex * vy - ey * vx
+            if abs(cross) < 1e-6:
+                continue
+            sign = 1 if cross > 0 else -1
+            if same_sign is None:
+                same_sign = sign
+            elif sign != same_sign:
+                return False
+        return True
     
     def display_workspace_summary(self):
         """Display a summary of the workspace"""
@@ -297,13 +323,15 @@ class ObjectMover:
                 # Move to object position and pick it up
                 obj_pos = obj["arm_coordinates"]
                 print("   Picking up object...")
+                quick_suction(obj_pos["x"], obj_pos["y"], LIMIT_J3_MAX + EE2CUP_Z_OFFSET)
+                time.sleep(2)
                 success = suck_object(obj_pos["x"], obj_pos["y"], obj_pos["z"])
                 
                 if success:
                     # Move to destination and release
                     print("   Moving to destination...")
                     quick_suction(dest_x, dest_y, LIMIT_J3_MAX + EE2CUP_Z_OFFSET)
-                    time.sleep(2)
+                    time.sleep(3)
                     release_object(dest_x, dest_y, dest_z)
                     print("   ✅ Object moved successfully")
                 else:

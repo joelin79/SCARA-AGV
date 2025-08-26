@@ -379,6 +379,9 @@ class ObjectDetectionSystem:
                 self.aruco_detector.detected_markers = deduped_markers
             self._process_aruco_plates()
         
+        # Strictly keep only objects that lie INSIDE a detected plate boundary
+        self._filter_objects_outside_plates()
+        
         # Filter duplicates
         self._filter_duplicate_objects()
         
@@ -744,7 +747,7 @@ class ObjectDetectionSystem:
             arm_point = t_bc + R_bc @ cam_point
 
             #　MARK: force calibration
-            arm_point[0] = arm_point[0] - 24.0
+            arm_point[0] = arm_point[0] - 14.0
             arm_point[2] = camera_position[2] - depth_mm
             return float(arm_point[0]), float(arm_point[1]), float(arm_point[2])
         
@@ -919,6 +922,65 @@ class ObjectDetectionSystem:
                 
         except Exception as e:
             print(f"Error processing ArUco plates: {e}")
+
+    def _filter_objects_outside_plates(self) -> None:
+        """Remove any detected objects whose XY positions are not strictly inside a plate polygon.
+        If no plates are detected, no objects are considered valid (empties the list).
+        """
+        if not self.detected_objects:
+            return
+        if not self.detected_plates:
+            print("No plates detected – discarding all object detections (inside-only policy)")
+            self.detected_objects = []
+            return
+
+        def point_in_convex_quad(px: float, py: float, quad_xy: list[tuple[float, float]]) -> bool:
+            # Uses edge cross products; considers points on edges as inside
+            same_sign = None
+            for i in range(4):
+                x1, y1 = quad_xy[i]
+                x2, y2 = quad_xy[(i + 1) % 4]
+                ex = x2 - x1
+                ey = y2 - y1
+                vx = px - x1
+                vy = py - y1
+                cross = ex * vy - ey * vx
+                if abs(cross) < 1e-6:
+                    continue  # On the edge; acceptable as inside
+                sign = 1 if cross > 0 else -1
+                if same_sign is None:
+                    same_sign = sign
+                elif sign != same_sign:
+                    return False
+            return True
+
+        # Build polygons for each plate from their corner coordinates (XY only)
+        plate_polys: list[list[tuple[float, float]]] = []
+        for plate in self.detected_plates:
+            try:
+                corners_xy = [(float(c[0]), float(c[1])) for c in plate.corners_arm_coords]
+                if len(corners_xy) == 4:
+                    plate_polys.append(corners_xy)
+            except Exception:
+                continue
+
+        if not plate_polys:
+            print("No usable plate boundaries – discarding all object detections (inside-only policy)")
+            self.detected_objects = []
+            return
+
+        kept: list[DetectedObject] = []
+        removed = 0
+        for obj in self.detected_objects:
+            x, y = float(obj.arm_coords[0]), float(obj.arm_coords[1])
+            inside_any = any(point_in_convex_quad(x, y, poly) for poly in plate_polys)
+            if inside_any:
+                kept.append(obj)
+            else:
+                removed += 1
+        if removed:
+            print(f"Removed {removed} objects outside plate boundaries; kept {len(kept)} inside")
+        self.detected_objects = kept
     
     def _filter_duplicate_objects(self, distance_threshold: float = 30.0):
         """
@@ -1106,7 +1168,10 @@ class ObjectDetectionSystem:
                     "height_mm": float(plate.height_mm),
                     "area_mm2": float(plate.area_mm2),
                     "orientation_deg": float(plate.orientation_deg),
-                    "edge_marker_ids": [int(m.marker_id) for m in plate.edge_markers]
+                    "edge_marker_ids": [int(m.marker_id) for m in plate.edge_markers],
+                    "corners_arm_coords": [
+                        [float(c[0]), float(c[1]), float(c[2])] for c in plate.corners_arm_coords
+                    ]
                 }
                 results["detected_plates"].append(plate_data)
             
