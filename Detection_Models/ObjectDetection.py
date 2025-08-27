@@ -440,6 +440,10 @@ class ObjectDetectionSystem:
             detections = []
             object_id = len(self.detected_objects)  # Continue numbering
             
+            # Get image dimensions for edge detection
+            img_height, img_width = color_image.shape[:2]
+            edge_margin = 20
+            
             for result in results:
                 if result.boxes is not None:
                     for box in result.boxes:
@@ -448,6 +452,22 @@ class ObjectDetectionSystem:
                         confidence = float(box.conf[0])
                         class_id = int(box.cls[0])
                         class_name = self.yolo_model.names[class_id]
+                        
+                        # Check if bounding box is near image edges
+                        is_near_edge = (x1 < edge_margin or y1 < edge_margin or 
+                                       x2 > img_width - edge_margin or y2 > img_height - edge_margin)
+                        
+                        # Check aspect ratio (width:height)
+                        bbox_width = x2 - x1
+                        bbox_height = y2 - y1
+                        aspect_ratio = bbox_width / bbox_height if bbox_height > 0 else 1.0
+                        is_cropped = aspect_ratio > 1.2 or aspect_ratio < 1/1.2  # More than 1:1.2 or less than 1.2:1
+                        
+                        # Apply confidence penalty if object is near edge AND has unusual aspect ratio
+                        if is_near_edge and is_cropped:
+                            confidence = max(0.0, confidence - 0.2)
+                            print(f"  ⚠ Edge penalty applied: {class_name} confidence {confidence + 0.2:.2f} → {confidence:.2f}")
+                            print(f"    BBox: ({x1}, {y1}, {x2}, {y2}), Aspect: {aspect_ratio:.2f}, Near edge: {is_near_edge}")
                         
                         # Calculate center point
                         center_x = (x1 + x2) // 2
@@ -981,7 +1001,7 @@ class ObjectDetectionSystem:
             print(f"Removed {removed} objects outside plate boundaries; kept {len(kept)} inside")
         self.detected_objects = kept
     
-    def _filter_duplicate_objects(self, distance_threshold: float = 30.0):
+    def _filter_duplicate_objects(self, distance_threshold: float = 20.0):
         """
         Filter duplicate objects that are close to each other
         
