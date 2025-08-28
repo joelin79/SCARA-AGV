@@ -1,258 +1,204 @@
-# SCARA AGV Object Detection System
+## SCARA‑AGV 物件偵測與搬運系統
 
-A complete computer vision system for detecting objects and transforming their pixel coordinates to SCARA arm coordinates for automated manipulation.
+整合 Intel RealSense 深度相機、YOLO 目標偵測與 SCARA 手臂控制，能自動掃描整個工作區、偵測盤面上的物件，轉換成手臂座標，並支援互動式搬運。
 
-## Overview
+### 功能亮點
+- 自動網格掃描：規劃可達的相機位置，完整覆蓋工作區
+- YOLO 偵測：載入自訓練的 `yolo/my_model/my_model.pt` 權重
+- 深度與座標轉換：像素點 + 深度 → 手臂基座座標 (mm)
+- ArUco 盤面偵測：以邊框標記推導盤面範圍，只保留盤內物件
+- 去重與品質處理：重疊視角去重、邊界檢測懲罰、置信度排序
+- 3D 視覺化：輸出偵測點雲與盤面模型圖
+- 互動式搬運：依盤面編號把物件搬移到指定盤
 
-This system integrates:
-- **SCARA arm control** (`SCARA.py`) - Right-handed mode robotic arm
-- **Camera calibration** (`camera_calib.py`) - Intel RealSense D435i calibration
-- **YOLO object detection** (`yolo_detection.py`) - Custom trained YOLOv11 model
-- **Coordinate transformation** (`ObjectDetection.py`) - Pixel to arm coordinate conversion
-- **Automated scanning** - Multi-position workspace coverage
+---
 
-## Quick Start
+## 安裝需求
 
-### 1. Test Extension Arm (Hardware Setup)
-```bash
-# Test extension arm functionality and calibration
-python test_extension_arm.py
-```
+### 硬體
+- SCARA 手臂（含延伸臂/吸頭/相機支架）
+- Intel RealSense D435/D435i 深度相機
 
-### 2. Test Vision System
-```bash
-# Test camera and detection without moving the arm
-python demo_detection.py
-```
-
-### 3. Camera Calibration (First Time Setup)
-```bash
-# Calibrate camera with checkerboard pattern
-python camera_calib.py
-```
-
-### 4. Run Complete Object Detection
-```bash
-# Automated workspace scan and object detection
-python execute.py
-```
-
-## System Requirements
-
-- **Hardware**: SCARA arm with D435i camera mounted facing down
-- **Python Dependencies**: 
+### 軟體與環境
+- Python 3.8 以上（建議 3.9+）
+- 套件：
+  - `ultralytics`（YOLO）
+  - `pyrealsense2`
   - `opencv-python`
-  - `ultralytics` (YOLO)
   - `numpy`
-  - `PyYAML`
-  - `pygame` (for manual arm control)
+  - `matplotlib`
 
-### Installation
+安裝範例：
 ```bash
-pip install opencv-python ultralytics numpy PyYAML pygame
+python -m venv .venv
+source .venv/bin/activate  # Windows 用 .venv\\Scripts\\activate
+pip install ultralytics pyrealsense2 opencv-python numpy matplotlib
 ```
 
-## Hardware Setup
+---
 
-### Extension Arm Configuration
-- **Extension arm** attached to J4 joint
-- **Suction cup** at 45mm from J4 center
-- **D435i camera** at 140mm from J4 center
-- **Extension arm orientation**: Always points in +X direction during operation
-
-### Camera Setup
-The D435i camera is now mounted on the extension arm:
-- Mounted 140mm from J4 center on extension arm
-- Facing downward (-Z direction)
-- Extension arm maintains +X orientation (90° cartesian)
-- Height: ~30cm (300mm) above work surface
-
-## Usage Guide
-
-### Option 1: Full Automated Scan
-```python
-from ObjectDetection import SCARAObjectDetection
-
-detector = SCARAObjectDetection()
-objects = detector.scan_workspace_and_detect_objects()
-coordinates = detector.get_object_coordinates_list()
-```
-
-### Option 2: Single Position Detection
-```python
-detector = SCARAObjectDetection()
-image = detector.capture_image_at_position(200, 0, 200)
-detections = detector.detect_objects_in_image(image, (200, 0, 200))
-```
-
-## Output Files
-
-- `object_coordinates.txt` - Human-readable coordinate list
-- `object_coordinates.py` - Python importable coordinates
-- `detections_output/` - Annotated detection images
-- `calib_params.yaml` - Camera calibration parameters
-
-## Coordinate System
-
-**SCARA Arm Coordinates:**
-- Origin: (96.979, 70.459, 200) mm
-- X-axis: Forward/backward
-- Y-axis: Left/right  
-- Z-axis: Up/down
-- Workspace: ~410mm radius from origin
-
-**Extension Arm Coordinates:**
-- Cartesian directions: 0° = +X, 90° = +Y, -90° = -Y, ±180° = -X
-- Extension arm automatically maintains +Y direction (90°) during operation (default)
-- Suction cup: 45mm from J4 center along extension arm
-- Camera: 140mm from J4 center along extension arm
-
-**Camera Coordinates:**
-- Mounted on extension arm pointing +X direction
-- Facing down, 1280x720 resolution
-- Objects detected at Z=0 (work surface)
-- Camera position automatically calculated from end effector + 140mm in +X
-
-## Calibration
-
-### Camera Intrinsic Calibration
-1. Print a checkerboard pattern (9x6 corners, 25mm squares)
-2. Run `python camera_calib.py`
-3. Capture 15-20 images at different angles
-4. Calibration parameters saved to `calib_params.yaml`
-
-### Default Parameters
-If no calibration file exists, default D435i parameters are used:
-- Focal length: ~910 pixels
-- Principal point: (640, 360)
-- No lens distortion assumed
-
-## Configuration Options
-
-### SCARAObjectDetection Parameters
-```python
-detector = SCARAObjectDetection(
-    model_path="yolo/my_model/my_model.pt",  # YOLO model path
-    confidence_threshold=0.5,                # Detection_Models confidence
-    camera_height=300.0,                     # Camera height (mm)
-    calib_file="calib_params.yaml"          # Calibration file
-)
-```
-
-### Scanning Parameters
-```python
-objects = detector.scan_workspace_and_detect_objects(
-    camera_index=0,    # Camera device index
-    grid_size=3        # 3x3 = 9 scan positions
-)
-```
-
-## Troubleshooting
-
-### Camera Issues
-- **Camera not found**: Check `camera_index` (try 0, 1, 2)
-- **Poor image quality**: Adjust lighting, clean camera lens
-- **Wrong resolution**: D435i supports up to 1920x1080
-
-### Detection Issues
-- **No objects detected**: Lower `confidence_threshold`
-- **Wrong coordinates**: Re-run camera calibration
-- **Duplicate detections**: Adjust `distance_threshold` in duplicate removal
-
-### Arm Movement Issues
-- **Unreachable positions**: Check workspace limits in `scara_workspace_domain_grapher.py`
-- **Communication errors**: Verify serial connection to arm controller
-
-## Extension Arm Functions
-
-### New SCARA.py Functions
-```python
-# Extension arm control
-set_extension_direction(90.0)  # Point extension arm in +Y direction (default)
-calculate_j4_for_cartesian_direction(j1, j2, angle)  # Calculate required J4
-
-# Position utilities  
-get_suction_cup_position()  # Returns (x, y, z) of suction cup
-get_camera_position()       # Returns (x, y, z) of camera
-
-# Enhanced movement with automatic extension control
-quick(x, y, z, maintain_extension_direction=True, extension_angle=90.0)  # Default +Y
-linear(x, y, z, maintain_extension_direction=True, extension_angle=90.0)  # Default +Y
-```
-
-### Enhanced Collision Checking
-- Extension arm collision detection with base
-- Safety margins for suction cup and camera positions
-- Automatic workspace boundary checking
-
-## File Structure
-
+## 專案結構（重點檔案）
 ```
 SCARA-AGV/
-├── ObjectDetection.py      # Main detection system (updated for extension arm)
-├── execute.py              # Easy run script
-├── demo_detection.py       # Test individual components
-├── test_extension_arm.py   # Extension arm functionality tests
-├── camera_calib.py         # Camera calibration
-├── SCARA.py               # Arm control (updated with extension arm)
-├── yolo_detection.py      # Object detection
-├── yolo/my_model/         # Trained YOLO model
-├── detections_output/     # Output images
-└── README.md              # This file
+├── main.py                          # 一鍵流程：校正 → 偵測 → 搬運互動
+├── object_mover.py                  # 互動式搬運介面（依盤面搬移物件）
+├── Detection_Models/
+│   ├── ObjectDetection.py           # 主要偵測管線（相機/YOLO/盤面/輸出/視覺化）
+│   └── yolo_detection.py            # 單圖/資料夾 YOLO 偵測工具
+├── RealSense/
+│   ├── realsense_depth.py           # 相機介面
+│   ├── camera_calibration.py        # 相機/手眼標定程式
+│   └── camera_calibration/*.json    # 標定檔（程式會讀取 factory.json）
+├── Arm_Control/
+│   └── SCARA.py                     # 手臂控制（串口/運動/安全界限）
+├── detection_output/                # 偵測輸出（JSON、影像、3D 圖）
+└── CALIBRATION_GUIDE.md             # 詳細相機/手眼標定教學
 ```
 
-## Advanced Usage
+---
 
-### Extension Arm Calibration Process
-1. **Physical Setup**: Manually align extension arm parallel to J2 arm segment
-2. **Run Calibration**: Execute `python SCARA.py` or call `calibrate()` function
-3. **Automatic Setup**: System sets J4=0° and moves extension to +Y direction (default)
-4. **Verification**: Use `test_extension_arm.py` to verify proper operation
+## 快速開始（建議流程）
 
-### Custom Extension Arm Orientations
+1) 放好 YOLO 權重檔
+- 將訓練好的模型放至 `yolo/my_model/my_model.pt`
+
+2) 相機/手眼標定（建議）
+```bash
+python RealSense/camera_calibration.py
+```
+- 產生或更新 `RealSense/camera_calibration/camera_calibration_factory.json`
+- 也可參考 `CALIBRATION_GUIDE.md`
+
+3) 一鍵執行
+```bash
+python main.py
+```
+- 會自動嘗試：載入手臂控制 → 啟動偵測管線 → 匯出結果 → 啟動搬運互動
+
+完成後輸出在 `detection_output/`：
+- `detected_objects.json`：完整偵測與盤面結果
+- `captured_images/`：各掃描點的原始與標註影像
+- `3d_detection_results.png`、`3d_plate_results.png`：3D 視覺化
+
+---
+
+## 進階使用
+
+### 只跑偵測管線
+```bash
+python Detection_Models/ObjectDetection.py
+```
+
+程式中可自訂：
 ```python
-# Move with different extension arm directions
-quick(x, y, z, maintain_extension_direction=True, extension_angle=90)   # +Y direction (default)
-quick(x, y, z, maintain_extension_direction=True, extension_angle=0)    # +X direction
-quick(x, y, z, maintain_extension_direction=True, extension_angle=180)  # -X direction
-quick(x, y, z, maintain_extension_direction=True, extension_angle=-90)  # -Y direction
+from Detection_Models.ObjectDetection import ObjectDetectionSystem
+
+detector = ObjectDetectionSystem(
+    model_path="yolo/my_model/my_model.pt",
+    use_calibration=True,
+    save_images=True,
+)
+
+detector.initialize()
+detector.plan_scanning_positions(
+    scan_height=280.0,
+    grid_spacing=80.0,
+    camera_direction=-90.0,
+    y_max=0,
+)
+detector.scan_workspace(confidence_threshold=0.7)
+detector.save_results("detected_objects.json")
+detector.visualize_3d()
 ```
 
-### Pick-and-Place with Extension Arm
-```python
-from object_coordinates import object_coordinates
-from SCARA import quick, get_suction_cup_position, EXTENSION_SUCTION_LENGTH
-
-for obj_x, obj_y, obj_z in object_coordinates:
-    # Calculate end effector position to place suction cup at object
-    # Extension arm points +Y by default, so suction cup is 45mm in +Y direction
-    end_x = obj_x
-    end_y = obj_y - EXTENSION_SUCTION_LENGTH  # Account for 45mm offset in +Y
-    end_z = 200  # Working height
-    
-    quick(end_x, end_y, end_z)  # Extension arm automatically points +Y
-    # Suction cup is now positioned over the object
-    # Add suction control here
+### YOLO 單獨推論（對圖片/資料夾）
+```bash
+python Detection_Models/yolo_detection.py \
+  --model yolo/my_model/my_model.pt \
+  --source "path/to/images/*.jpg" \
+  --resolution 1280x720
 ```
 
-### Custom Object Classes
-Modify your YOLO model training to detect specific objects for your application.
+### 互動式搬運
+偵測完成後（已有 `detected_objects.json`）可執行：
+```bash
+python object_mover.py
+```
+- 顯示盤面摘要、物件列表，支援將單一或全部物件搬到指定盤
+- 若無法連線手臂，會自動切換為模擬模式
 
-### Custom Scan Patterns
-Override `generate_scan_positions()` to create custom scanning paths that account for the camera's 140mm offset.
+---
 
-## Safety Notes
+## 標定與座標轉換（重點）
 
-- Always verify arm workspace limits before operation
-- Ensure emergency stop is accessible during automated scanning
-- Test with demo mode before full automation
-- Check camera mount stability during arm movement
+- 內部優先讀取 `RealSense/camera_calibration/camera_calibration_factory.json`。
+- 若有手眼標定（`handeye_R_ee2cam`, `handeye_t_ee2cam`）會走完整外參轉換；否則退回簡化模型。
+- 未標定時仍可運作，但座標精度會下降；建議依 `CALIBRATION_GUIDE.md` 完成內/外參與手眼。
 
-## Support
+常見需求：
+- 內參：`fx/fy/cx/cy`、畸變係數，用於像素反投影與去畸變
+- 外參/手眼：相機座標 → 手臂基座座標的旋轉/平移
 
-For issues related to:
-- **YOLO detection**: Check model path and training data
-- **Coordinate accuracy**: Re-calibrate camera
-- **Arm control**: Verify SCARA.py serial connection
-- **System integration**: Use demo_detection.py for debugging
+---
+
+## 輸出與 JSON 結構（節錄）
+
+`detection_output/detected_objects.json` 範例鍵值：
+```json
+{
+  "scan_metadata": {
+    "timestamp": "2024-01-01 12:00:00",
+    "total_objects": 5,
+    "total_plates": 2,
+    "scan_positions": 25,
+    "model_path": "yolo/my_model/my_model.pt"
+  },
+  "detected_objects": [
+    {
+      "object_id": 0,
+      "class_name": "block",
+      "confidence": 0.85,
+      "bbox": [100, 150, 200, 250],
+      "center_pixel": [150, 200],
+      "depth_mm": 580.5,
+      "arm_coordinates": {"x": 250.3, "y": -45.7, "z": 25.8},
+      "camera_position": {"x": 250.0, "y": -50.0, "z": 150.0}
+    }
+  ],
+  "detected_plates": [
+    {
+      "plate_id": 1,
+      "center_arm_coordinates": {"x": 100.0, "y": 200.0, "z": 20.0},
+      "dimensions": {"width_mm": 200.0, "length_mm": 300.0},
+      "height_mm": 18.0,
+      "edge_marker_ids": [1, 0, 3, 2],
+      "corners_arm_coords": [[...], [...], [...], [...]]
+    }
+  ]
+}
+```
+
+---
+
+## 疑難排解（FAQ）
+
+- 相機無法啟動：請安裝 `pyrealsense2`，確認 USB 連線；以 RealSense Viewer 測試
+- 找不到模型：確認 `yolo/my_model/my_model.pt` 是否存在
+- 無偵測結果：降低 `confidence_threshold`（例如 0.4），改善照明
+- 盤面為空：確保 ArUco 邊框標記清楚可見；未偵測到盤面時系統會丟棄所有物件
+- macOS USB 攝影機索引：若使用 `yolo_detection.py` 的 `--source usbX`，在 macOS 會被轉成 `1`；建議以影像檔/資料夾測試
+- 手臂通訊：確認 `Arm_Control/SCARA.py` 的串口設定與連線狀態
+
+---
+
+## 安全注意事項
+- 作業前先確認手臂活動範圍與安全界限
+- 自動掃描時務必有人在旁監看並有急停裝置
+- 初期請以較高掃描高度、較慢速度驗證流程
+
+---
+
+## 參考文件
+- `CALIBRATION_GUIDE.md`：完整內/外參與手眼標定流程與評估
+- `OBJECT_DETECTION_README.md`、`README_ObjectDetection.md`：物件偵測與系統架構補充
 
