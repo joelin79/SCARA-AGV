@@ -36,7 +36,16 @@ def optimize_scanning_order(positions: List[Tuple[float, float, float]],
         remaining_positions = pos_array[1:].copy()
     else:
         start_pos = np.array(start_position)
+        # remove the chosen start from remaining if it exists to avoid duplication
+        # find exact match index (within tolerance) if present
         remaining_positions = pos_array.copy()
+        try:
+            diffs = np.linalg.norm(remaining_positions - start_pos, axis=1)
+            idx = int(np.argmin(diffs))
+            if diffs[idx] < 1e-6:
+                remaining_positions = np.delete(remaining_positions, idx, axis=0)
+        except Exception:
+            pass
     
     # Initialize result with starting position
     optimized_order = [tuple(start_pos)]

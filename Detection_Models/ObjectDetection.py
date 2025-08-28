@@ -240,9 +240,29 @@ class ObjectDetectionSystem:
             x += grid_spacing
         
         print(f"Generated {len(positions)} scanning positions")
-        self.scan_positions = positions
-        self.scan_positions = shortest_path_optimizer.optimize_scanning_order(positions)
-        return positions
+        # Choose the first scan point as the closest to origin (SCARA base)
+        try:
+            origin_x = float(getattr(scara_control, 'ORIGIN_X', 0.0)) if scara_control is not None else 0.0
+        except Exception:
+            origin_x = 0.0
+        try:
+            origin_y = float(getattr(scara_control, 'ORIGIN_Y', 0.0)) if scara_control is not None else 0.0
+        except Exception:
+            origin_y = 0.0
+
+        def _dist2_to_origin(p: Tuple[float, float, float]) -> float:
+            dx = p[0] - origin_x
+            dy = p[1] - origin_y
+            return dx * dx + dy * dy
+
+        start_pos = min(positions, key=_dist2_to_origin) if positions else None
+
+        # Optimize order with fixed starting position
+        optimized = shortest_path_optimizer.optimize_scanning_order(
+            positions, start_position=start_pos
+        )
+        self.scan_positions = optimized
+        return optimized
     
     def _is_camera_position_reachable(self, cam_x: float, cam_y: float, cam_z: float, 
                                     camera_direction: float) -> bool:
