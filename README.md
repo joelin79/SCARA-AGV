@@ -61,6 +61,7 @@ SCARA-AGV/
 
 1) 放好 YOLO 權重檔
 - 將訓練好的模型放至 `yolo/my_model/my_model.pt`
+- 好用的 train 工具：[Google Colab](https://colab.research.google.com/github/EdjeElectronics/Train-and-Deploy-YOLO-Models/blob/main/Train_YOLO_Models.ipynb#scrollTo=43ypwonynLVu)
 
 2) 相機/手眼標定（建議）
 ```bash
