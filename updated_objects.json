@@ -32,7 +32,7 @@
         "y": -340.0,
         "z": 280.0
       },
-      "assigned_plate": 1
+      "assigned_plate": 2
     },
     {
       "object_id": 1,
@@ -59,7 +59,7 @@
         "y": -340.0,
         "z": 280.0
       },
-      "assigned_plate": 1
+      "assigned_plate": 2
     },
     {
       "object_id": 2,
@@ -86,7 +86,7 @@
         "y": -340.0,
         "z": 280.0
       },
-      "assigned_plate": 1
+      "assigned_plate": 2
     },
     {
       "object_id": 3,
@@ -113,7 +113,7 @@
         "y": -260.0,
         "z": 280.0
       },
-      "assigned_plate": 1
+      "assigned_plate": 2
     }
   ],
   "detected_plates": [
